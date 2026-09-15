@@ -1,0 +1,17 @@
+---
+# Defaults for every host. Anything here can be overridden per host in the
+# inventory, which is where the machine-specific facts belong.
+k3s_version: v1.31.5+k3s1
+minio_data_path: /srv/minio
+minio_min_free_gb: 20
+
+# The marketplace CA, copied to every machine so SQL clients can use single
+# sign-on instead of being handed a trust store and a bearer token each.
+marketplace_ca_source: "{{ playbook_dir }}/../../marketplace/generated/trino/tls/marketplace-ca.crt"
+
+# The VM that runs the platform itself.
+# /var/lib, not /run: /run is a tmpfs, and this directory holds secrets.env, the
+# OIDC client, the TLS keystore and the audit log.
+platform_user: nda
+platform_runtime: /var/lib/nda
+platform_project: nda-production

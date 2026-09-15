@@ -1,0 +1,27 @@
+ARG PYTHON_IMAGE
+ARG FLINK_IMAGE
+ARG CATALOG_IMAGE
+FROM ${PYTHON_IMAGE} AS app
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre-headless ca-certificates git curl && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY delivery/requirements.lock /tmp/requirements.lock
+RUN pip install --require-hashes -r /tmp/requirements.lock
+COPY streaming /app/streaming
+COPY marketplace /app/marketplace
+COPY delivery /app/delivery
+COPY infra /app/infra
+COPY data /app/data
+COPY stream_kpi_dash_g2.py analytics_answers.py dashboard_theme.css /app/
+RUN python -m delivery.dependencies && python -m streaming.generate
+CMD ["python", "-m", "uvicorn", "streaming.api:app", "--host", "0.0.0.0", "--port", "8000"]
+
+FROM ${FLINK_IMAGE} AS flink
+COPY --from=app /app/streaming/jars/ /opt/flink/lib/
+COPY --from=app /app/streaming/generated/03-medallion.sql /opt/nda/medallion.sql
+
+FROM ${CATALOG_IMAGE} AS catalog
+USER root
+COPY --from=app /app/delivery/vendor/postgresql.jar /usr/lib/iceberg-rest/postgresql.jar
+USER iceberg
+ENTRYPOINT ["java", "-cp", "/usr/lib/iceberg-rest/postgresql.jar:/usr/lib/iceberg-rest/iceberg-rest-image-all.jar", "org.apache.iceberg.rest.RESTCatalogServer"]

@@ -1,0 +1,151 @@
+name: Deploy
+
+# Deploys the images CI already published to the production Ubuntu VM.
+#
+# It never builds. A deployment can only use digests that came out of the
+# `publish` job, which only runs after the real-engine integration gate passed,
+# so what reaches the VM is exactly what was tested.
+#
+# Requires, in repository settings:
+#   secrets.DEPLOY_SSH_KEY   private key for the deploy account on the VM
+#   secrets.DEPLOY_HOST      the VM's address
+#   secrets.DEPLOY_KNOWN_HOSTS  output of `ssh-keyscan <host>`
+#   vars.KEYCLOAK_PUBLIC_URL    e.g. https://sso.nda.example
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit SHA to deploy (must have been published by CI)"
+        required: true
+      confirm:
+        description: 'Type "deploy" to apply; anything else renders and stops'
+        required: true
+        default: "dry-run"
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  RUNTIME: /var/lib/nda
+  PROJECT: nda-production
+
+jobs:
+  deploy:
+    name: Production VM
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install locked dependencies
+        run: pip install --require-hashes -r delivery/requirements.lock
+
+      # The digests come from the publish job, not from a build here. If CI never
+      # published this SHA there is nothing to deploy, and that is the point.
+      - name: Fetch the published digests
+        uses: actions/download-artifact@v4
+        with:
+          name: images-${{ inputs.sha }}
+          path: delivery
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id || '' }}
+        continue-on-error: true
+
+      - name: Confirm we have digests to deploy
+        shell: bash
+        run: |
+          test -f delivery/images.built.json || {
+            echo "::error::No published images for ${{ inputs.sha }}."
+            echo "::error::Push it to master and let CI publish first."
+            exit 1; }
+          python - <<'PY'
+          import json, pathlib, sys
+          images = json.loads(pathlib.Path("delivery/images.built.json").read_text())
+          missing = [k for k, v in images.items() if "@sha256:" not in v]
+          if missing:
+              sys.exit(f"::error::not digest-pinned: {missing}")
+          for k, v in images.items():
+              print(f"  {k:8} {v}")
+          PY
+
+      # Rendered here, for the VM. The runtime path is baked into the mounts and
+      # is the VM's, not this runner's.
+      - name: Render the production topology
+        run: |
+          python -m delivery.release render \
+            --keycloak-url "${{ vars.KEYCLOAK_PUBLIC_URL }}" \
+            --runtime "$RUNTIME" --out compose.yaml
+          docker compose -f compose.yaml config --quiet
+          echo "Rendered and validated."
+
+      - name: Stop here unless explicitly confirmed
+        if: inputs.confirm != 'deploy'
+        run: |
+          echo "::notice::Dry run. compose.yaml rendered and validated, nothing deployed."
+          echo "::notice::Re-run with confirm=deploy to apply."
+          exit 0
+
+      - name: Authorise SSH
+        if: inputs.confirm == 'deploy'
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      # The VM must already be prepared by Ansible: Docker, the deploy account,
+      # $RUNTIME with secrets.env, and the nda-platform unit.
+      - name: Check the VM is prepared
+        if: inputs.confirm == 'deploy'
+        run: |
+          ssh nda@${{ secrets.DEPLOY_HOST }} '
+            set -e
+            command -v docker >/dev/null || { echo "Docker missing - run the Ansible platform role"; exit 1; }
+            test -f '"$RUNTIME"'/secrets.env || { echo "No secrets.env - run: python -m delivery.secrets init '"$RUNTIME"'"; exit 1; }
+            systemctl list-unit-files nda-platform.service >/dev/null || { echo "nda-platform.service missing"; exit 1; }
+            echo "VM is prepared."'
+
+      - name: Ship the topology
+        if: inputs.confirm == 'deploy'
+        run: scp compose.yaml nda@${{ secrets.DEPLOY_HOST }}:$RUNTIME/compose.yaml
+
+      # Pull before restarting, so the outage is the restart and not the download.
+      - name: Pull and restart
+        if: inputs.confirm == 'deploy'
+        run: |
+          ssh nda@${{ secrets.DEPLOY_HOST }} '
+            set -e
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker compose -f '"$RUNTIME"'/compose.yaml -p '"$PROJECT"' pull --quiet
+            sudo systemctl restart nda-platform.service
+            sudo systemctl is-active nda-platform.service'
+
+      # A deployment that starts is not a deployment that works. These are the
+      # same assertions CI makes, run against production.
+      - name: Prove the deployment
+        if: inputs.confirm == 'deploy'
+        run: |
+          ssh nda@${{ secrets.DEPLOY_HOST }} '
+            set -e
+            docker compose -f '"$RUNTIME"'/compose.yaml -p '"$PROJECT"' ps
+            docker compose -f '"$RUNTIME"'/compose.yaml -p '"$PROJECT"' exec -T api \
+              python -m marketplace.trino_config check'
+
+      - name: Report what is running on failure
+        if: failure() && inputs.confirm == 'deploy'
+        run: |
+          ssh nda@${{ secrets.DEPLOY_HOST }} '
+            docker compose -f '"$RUNTIME"'/compose.yaml -p '"$PROJECT"' ps || true
+            docker compose -f '"$RUNTIME"'/compose.yaml -p '"$PROJECT"' logs --tail 120 || true' || true

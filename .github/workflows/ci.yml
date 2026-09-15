@@ -1,0 +1,144 @@
+name: CI
+
+# Everything in delivery/ existed before this file did, and nothing triggered it.
+# These are the gates, in ascending order of cost: a few seconds of coherence
+# checks, then the unit suite, then a real stack with real engines.
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  validate:
+    name: Coherence and unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # --require-hashes means a tampered or substituted package fails the
+      # install rather than the review.
+      - name: Install locked dependencies
+        run: pip install --require-hashes -r delivery/requirements.lock
+
+      # Offline: locks pinned, modules import, Dockerfile inputs present,
+      # deployment guards refuse what they should, access-rule invariants hold.
+      - name: Validate
+        run: python -m delivery.validate
+
+      - name: Unit tests
+        run: python -m pytest -q streaming/tests
+
+      # The lock must be reproducible from the .in file. Without this, someone can
+      # hand-edit the lock and the pinning becomes decoration.
+      #
+      # Comments are stripped before comparing: uv writes the -o path into the
+      # header, so a raw diff differs whenever the path differs and this gate
+      # would fail on every run until somebody deleted it.
+      - name: Lock is reproducible
+        shell: bash
+        run: |
+          pip install uv
+          uv pip compile delivery/requirements.in --python-version 3.11 \
+            --python-platform x86_64-manylinux_2_28 --generate-hashes \
+            -o /tmp/requirements.lock
+          strip() { grep -vE '^[[:space:]]*#' "$1" | grep -v '^$'; }
+          diff -u <(strip delivery/requirements.lock) <(strip /tmp/requirements.lock) \
+            || { echo "::error::requirements.lock is stale - regenerate it from requirements.in"; exit 1; }
+
+  integration:
+    name: Real-engine integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: validate
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install locked dependencies
+        run: pip install --require-hashes -r delivery/requirements.lock
+
+      # Builds app/flink/catalog from digest-pinned bases. No registry here, so
+      # these are tags - enough to verify, and deliberately not enough to deploy.
+      - name: Build images
+        run: python -m delivery.release build --tag ci-${{ github.sha }}
+
+      # Disposable stack, unique project name, torn down with its volumes.
+      # Gates: unit tests, source/silver/gold reconciliation, quarantine empty,
+      # idempotent replay, per-role RBAC, OAuth2 sign-in, dbt build, the 19
+      # metrics, and the audit trail.
+      - name: Verify against a real stack
+        run: python -m delivery.release verify
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          for p in $(docker compose ls --format json | python -c \
+            "import json,sys; print(' '.join(s['Name'] for s in json.load(sys.stdin)))"); do
+            echo "===== $p ====="
+            docker compose -p "$p" logs --tail 200 || true
+          done
+
+      - name: Always tear down
+        if: always()
+        run: |
+          for p in $(docker compose ls -a --format json | python -c \
+            "import json,sys; print(' '.join(s['Name'] for s in json.load(sys.stdin) if s['Name'].startswith('nda-ci-')))"); do
+            docker compose -p "$p" down -v --remove-orphans || true
+          done
+
+  publish:
+    name: Publish immutable images
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: integration
+    # Only from the default branch, and only once the real stack has passed.
+    # A digest cannot exist without a push, and nothing may deploy without one.
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install locked dependencies
+        run: pip install --require-hashes -r delivery/requirements.lock
+
+      - name: Log in to the registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        env:
+          NDA_REGISTRY: ghcr.io/${{ github.repository_owner }}
+        run: python -m delivery.release build --tag ${{ github.sha }}
+
+      # images.built.json now holds digests. It is the input to deployment, so
+      # it is the artefact worth keeping.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: images-${{ github.sha }}
+          path: delivery/images.built.json
+          if-no-files-found: error

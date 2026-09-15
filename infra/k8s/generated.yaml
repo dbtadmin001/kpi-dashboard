@@ -1,0 +1,1596 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nda-platform
+  labels:
+    nda.io/layer: platform
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nda-pipeline
+  labels:
+    nda.io/layer: pipeline
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nda-local
+provisioner: rancher.io/local-path
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: nda-platform
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15@sha256:9b1d34adbce1dd07ee6e94b4a2cf698884b89bd44a6c9c12f5da8f3acbfe4957
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          value: nda
+        - name: POSTGRES_DB
+          value: nda
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: POSTGRES_PASSWORD
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: '1'
+            memory: 1Gi
+        readinessProbe:
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 6
+          timeoutSeconds: 5
+          exec:
+            command:
+            - sh
+            - -c
+            - pg_isready -U nda -d nda
+        livenessProbe:
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          failureThreshold: 6
+          timeoutSeconds: 5
+          exec:
+            command:
+            - sh
+            - -c
+            - pg_isready -U nda -d nda
+      terminationGracePeriodSeconds: 60
+  serviceName: postgres
+  podManagementPolicy: Parallel
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: nda-local
+      resources:
+        requests:
+          storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: nda-platform
+spec:
+  selector:
+    app: postgres
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: minio
+  namespace: nda-platform
+  labels:
+    app: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+      - name: minio
+        image: minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+        command:
+        - server
+        - --console-address
+        - :9001
+        - /data
+        ports:
+        - containerPort: 9000
+        - containerPort: 9001
+        env:
+        - name: MINIO_ROOT_USER
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: MINIO_ROOT_USER
+        - name: MINIO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: MINIO_ROOT_PASSWORD
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: '2'
+            memory: 2Gi
+        readinessProbe:
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 6
+          timeoutSeconds: 5
+          httpGet:
+            path: /minio/health/ready
+            port: 9000
+            scheme: HTTP
+        livenessProbe:
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          failureThreshold: 6
+          timeoutSeconds: 5
+          httpGet:
+            path: /minio/health/live
+            port: 9000
+            scheme: HTTP
+      terminationGracePeriodSeconds: 60
+      nodeSelector:
+        nda.io/storage: 'true'
+  serviceName: minio-headless
+  podManagementPolicy: Parallel
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: nda-local
+      resources:
+        requests:
+          storage: 100Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: nda-platform
+spec:
+  selector:
+    app: minio
+  ports:
+  - name: api
+    port: 9000
+    targetPort: 9000
+  - name: console
+    port: 9001
+    targetPort: 9001
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-headless
+  namespace: nda-platform
+spec:
+  selector:
+    app: minio
+  ports:
+  - name: api
+    port: 9000
+    targetPort: 9000
+  clusterIP: None
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kafka
+  namespace: nda-platform
+  labels:
+    app: kafka
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      containers:
+      - name: redpanda
+        image: docker.redpanda.com/redpandadata/redpanda:v24.2.10@sha256:6d627e3ebdc05438d1e8e3b55695ac1a7a0f79e7d5ca90b3b0f12dc984633e83
+        command:
+        - redpanda
+        - start
+        - --smp=1
+        - --memory=768M
+        - --reserve-memory=0M
+        - --overprovisioned
+        - --check=false
+        - --kafka-addr=0.0.0.0:9092
+        - --advertise-kafka-addr=$(POD_NAME).kafka-headless.nda-platform.svc.cluster.local:9092
+        - --seeds=kafka-0.kafka-headless.nda-platform.svc.cluster.local:33145
+        ports:
+        - containerPort: 9092
+        - containerPort: 9644
+        - containerPort: 33145
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/redpanda/data
+        resources:
+          requests:
+            cpu: 250m
+            memory: 1Gi
+          limits:
+            cpu: '1'
+            memory: 1500Mi
+        readinessProbe:
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          failureThreshold: 6
+          timeoutSeconds: 5
+          httpGet:
+            path: /v1/status/ready
+            port: 9644
+            scheme: HTTP
+        livenessProbe:
+          initialDelaySeconds: 90
+          periodSeconds: 10
+          failureThreshold: 6
+          timeoutSeconds: 5
+          httpGet:
+            path: /v1/status/ready
+            port: 9644
+            scheme: HTTP
+      terminationGracePeriodSeconds: 60
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: kafka
+  serviceName: kafka-headless
+  podManagementPolicy: Parallel
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: nda-local
+      resources:
+        requests:
+          storage: 50Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: nda-platform
+spec:
+  selector:
+    app: kafka
+  ports:
+  - name: kafka
+    port: 9092
+    targetPort: 9092
+  - name: admin
+    port: 9644
+    targetPort: 9644
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-headless
+  namespace: nda-platform
+spec:
+  selector:
+    app: kafka
+  ports:
+  - name: kafka
+    port: 9092
+    targetPort: 9092
+  - name: rpc
+    port: 33145
+    targetPort: 33145
+  clusterIP: None
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kafka
+  namespace: nda-platform
+spec:
+  selector:
+    matchLabels:
+      app: kafka
+  minAvailable: 2
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: sqlserver
+  namespace: nda-pipeline
+  labels:
+    app: sqlserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sqlserver
+  template:
+    metadata:
+      labels:
+        app: sqlserver
+    spec:
+      containers:
+      - name: sqlserver
+        image: mcr.microsoft.com/mssql/server:2022-CU18-ubuntu-22.04@sha256:ea73825f3d88a23c355ac2f9fdc6bd960fec90171c12c572109b36a558f77bb8
+        ports:
+        - containerPort: 1433
+        env:
+        - name: ACCEPT_EULA
+          value: 'Y'
+        - name: MSSQL_PID
+          value: Developer
+        - name: MSSQL_AGENT_ENABLED
+          value: 'true'
+        - name: MSSQL_SA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: MSSQL_SA_PASSWORD
+        volumeMounts:
+        - name: data
+          mountPath: /var/opt/mssql
+        resources:
+          requests:
+            cpu: 500m
+            memory: 2Gi
+          limits:
+            cpu: '2'
+            memory: 3Gi
+        readinessProbe:
+          initialDelaySeconds: 45
+          periodSeconds: 15
+          failureThreshold: 20
+          timeoutSeconds: 5
+          exec:
+            command:
+            - sh
+            - -c
+            - /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD"
+              -Q 'SELECT 1'
+      terminationGracePeriodSeconds: 60
+  serviceName: sqlserver
+  podManagementPolicy: Parallel
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: nda-local
+      resources:
+        requests:
+          storage: 50Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sqlserver
+  namespace: nda-pipeline
+spec:
+  selector:
+    app: sqlserver
+  ports:
+  - name: mssql
+    port: 1433
+    targetPort: 1433
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iceberg-rest
+  namespace: nda-platform
+  labels:
+    app: iceberg-rest
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: iceberg-rest
+  template:
+    metadata:
+      labels:
+        app: iceberg-rest
+    spec:
+      containers:
+      - name: catalog
+        image: ghcr.io/o/nda-catalog@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        ports:
+        - containerPort: 8181
+        env:
+        - name: CATALOG_CATALOG__IMPL
+          value: org.apache.iceberg.jdbc.JdbcCatalog
+        - name: CATALOG_URI
+          value: jdbc:postgresql://postgres.nda-platform.svc:5432/nda
+        - name: CATALOG_JDBC_USER
+          value: nda
+        - name: CATALOG_WAREHOUSE
+          value: s3://warehouse/
+        - name: CATALOG_IO__IMPL
+          value: org.apache.iceberg.aws.s3.S3FileIO
+        - name: CATALOG_S3_ENDPOINT
+          value: http://minio.nda-platform.svc:9000
+        - name: CATALOG_S3_PATH__STYLE__ACCESS
+          value: 'true'
+        - name: AWS_REGION
+          value: us-east-1
+        - name: CATALOG_JDBC_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: CATALOG_JDBC_PASSWORD
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: AWS_SECRET_ACCESS_KEY
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            cpu: '1'
+            memory: 1Gi
+        readinessProbe:
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          failureThreshold: 6
+          timeoutSeconds: 5
+          httpGet:
+            path: /v1/config
+            port: 8181
+            scheme: HTTP
+        livenessProbe:
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          failureThreshold: 6
+          timeoutSeconds: 5
+          httpGet:
+            path: /v1/config
+            port: 8181
+            scheme: HTTP
+      terminationGracePeriodSeconds: 60
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: iceberg-rest
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iceberg-rest
+  namespace: nda-platform
+spec:
+  selector:
+    app: iceberg-rest
+  ports:
+  - name: rest
+    port: 8181
+    targetPort: 8181
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: iceberg-rest
+  namespace: nda-platform
+spec:
+  selector:
+    matchLabels:
+      app: iceberg-rest
+  maxUnavailable: 1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: nda-platform
+  labels:
+    app: keycloak
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+      - name: keycloak
+        image: quay.io/keycloak/keycloak:26.7.3@sha256:29be7252db0a106f1cd2ac17b9a56ff2668073da645638a38b9fc67deeb2d6c4
+        args:
+        - start
+        - --http-enabled=true
+        - --http-port=8180
+        - --hostname=http://nda-keycloak:8180
+        - --hostname-backchannel-dynamic=true
+        - --cache=ispn
+        ports:
+        - containerPort: 8180
+        - containerPort: 9000
+        env:
+        - name: KC_DB
+          value: postgres
+        - name: KC_DB_URL
+          value: jdbc:postgresql://postgres.nda-platform.svc:5432/nda
+        - name: KC_DB_USERNAME
+          value: nda
+        - name: KC_HEALTH_ENABLED
+          value: 'true'
+        - name: KC_BOOTSTRAP_ADMIN_USERNAME
+          value: admin
+        - name: JAVA_OPTS_KC_HEAP
+          value: -Xms256m -Xmx768m
+        - name: KC_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: KC_DB_PASSWORD
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: KEYCLOAK_ADMIN_PASSWORD
+        resources:
+          requests:
+            cpu: 250m
+            memory: 768Mi
+          limits:
+            cpu: '1'
+            memory: 1200Mi
+        readinessProbe:
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 20
+          timeoutSeconds: 5
+          httpGet:
+            path: /health/ready
+            port: 9000
+            scheme: HTTP
+        livenessProbe:
+          initialDelaySeconds: 120
+          periodSeconds: 10
+          failureThreshold: 6
+          timeoutSeconds: 5
+          httpGet:
+            path: /health/live
+            port: 9000
+            scheme: HTTP
+      terminationGracePeriodSeconds: 60
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: keycloak
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: nda-platform
+spec:
+  selector:
+    app: keycloak
+  ports:
+  - name: http
+    port: 8180
+    targetPort: 8180
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nda-keycloak
+  namespace: nda-platform
+spec:
+  selector:
+    app: keycloak
+  ports:
+  - name: http
+    port: 8180
+    targetPort: 8180
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: keycloak
+  namespace: nda-platform
+spec:
+  selector:
+    matchLabels:
+      app: keycloak
+  maxUnavailable: 1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opa
+  namespace: nda-pipeline
+  labels:
+    app: opa
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: opa
+  template:
+    metadata:
+      labels:
+        app: opa
+    spec:
+      containers:
+      - name: opa
+        image: openpolicyagent/opa:1.20.2@sha256:7b15f9d96345dfa639322ad97f65a0b38260f95efcdd7f5c24e284228708f06c
+        args:
+        - run
+        - --server
+        - --addr=0.0.0.0:8181
+        - --log-level=error
+        - /policy/authz.rego
+        - /policy/data.json
+        ports:
+        - containerPort: 8181
+        volumeMounts:
+        - name: policy
+          mountPath: /policy
+          readOnly: true
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        readinessProbe:
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 6
+          timeoutSeconds: 5
+          httpGet:
+            path: /health
+            port: 8181
+            scheme: HTTP
+        livenessProbe:
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 6
+          timeoutSeconds: 5
+          httpGet:
+            path: /health
+            port: 8181
+            scheme: HTTP
+      terminationGracePeriodSeconds: 60
+      volumes:
+      - name: policy
+        configMap:
+          name: opa-policy
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: opa
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opa
+  namespace: nda-pipeline
+spec:
+  selector:
+    app: opa
+  ports:
+  - name: http
+    port: 8181
+    targetPort: 8181
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trino-coordinator
+  namespace: nda-platform
+  labels:
+    app: trino-coordinator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trino-coordinator
+  template:
+    metadata:
+      labels:
+        app: trino-coordinator
+    spec:
+      containers:
+      - name: trino
+        image: trinodb/trino:455@sha256:cb08dfd4bd58fb4bec5df09457347c6f353f82d91495305e7648b2bf1307de45
+        ports:
+        - containerPort: 8443
+        - containerPort: 8080
+        volumeMounts:
+        - name: config
+          mountPath: /etc/trino
+          subPath: trino
+        resources:
+          requests:
+            cpu: 500m
+            memory: 2Gi
+          limits:
+            cpu: '2'
+            memory: 3Gi
+        readinessProbe:
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 30
+          timeoutSeconds: 5
+          httpGet:
+            path: /v1/info
+            port: 8443
+            scheme: HTTPS
+        livenessProbe:
+          initialDelaySeconds: 180
+          periodSeconds: 10
+          failureThreshold: 6
+          timeoutSeconds: 5
+          httpGet:
+            path: /v1/info
+            port: 8443
+            scheme: HTTPS
+      - name: identity
+        image: ghcr.io/o/nda-app@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        command:
+        - python
+        - -m
+        - marketplace.identity
+        - watch
+        - --interval
+        - '30'
+        env: &id001
+        - name: MARKETPLACE_RUNTIME_DIR
+          value: /etc/marketplace
+        - name: MARKETPLACE_OIDC_FILE
+          value: /etc/marketplace/trino_oidc.json
+        - name: MARKETPLACE_CREDENTIALS_FILE
+          value: /etc/marketplace/credentials.json
+        - name: MARKETPLACE_CA_FILE
+          value: /etc/marketplace/trino/tls/marketplace-ca.crt
+        - name: MARKETPLACE_TRINO_HOST
+          value: trino.nda-platform.svc
+        - name: KEYCLOAK_URL
+          value: http://nda-keycloak.nda-platform.svc:8180
+        - name: KEYCLOAK_ADMIN
+          value: admin
+        - name: AUDIT_INGEST_URI
+          value: http://audit.nda-pipeline.svc:8099/v1/query-events
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: AWS_SECRET_ACCESS_KEY
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: KEYCLOAK_ADMIN_PASSWORD
+        volumeMounts: &id002
+        - name: config
+          mountPath: /etc/marketplace
+        resources:
+          requests:
+            cpu: 50m
+            memory: 256Mi
+          limits:
+            cpu: 200m
+            memory: 512Mi
+      terminationGracePeriodSeconds: 60
+      initContainers:
+      - name: render-config
+        image: ghcr.io/o/nda-app@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        command:
+        - sh
+        - -c
+        - python -m marketplace.tls issue && python -m marketplace.trino_config write
+        env: *id001
+        volumeMounts: *id002
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 100m
+            memory: 256Mi
+      volumes:
+      - name: config
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trino
+  namespace: nda-platform
+spec:
+  selector:
+    app: trino-coordinator
+  ports:
+  - name: https
+    port: 8443
+    targetPort: 8443
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trino-marketplace
+  namespace: nda-platform
+spec:
+  selector:
+    app: trino-coordinator
+  ports:
+  - name: https
+    port: 8443
+    targetPort: 8443
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trino-worker
+  namespace: nda-platform
+data:
+  config.properties: 'coordinator=false
+
+    http-server.http.port=8080
+
+    discovery.uri=http://trino-discovery.nda-platform.svc:8080
+
+    query.max-memory=4GB
+
+    query.max-memory-per-node=1GB
+
+    '
+  node.properties: 'node.environment=marketplace
+
+    '
+  jvm.config: '-server
+
+    -Xmx2G
+
+    -XX:+UseG1GC
+
+    -XX:G1HeapRegionSize=32M
+
+    -XX:+ExitOnOutOfMemoryError
+
+    '
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trino-worker
+  namespace: nda-platform
+  labels:
+    app: trino-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: trino-worker
+  template:
+    metadata:
+      labels:
+        app: trino-worker
+    spec:
+      containers:
+      - name: trino
+        image: trinodb/trino:455@sha256:cb08dfd4bd58fb4bec5df09457347c6f353f82d91495305e7648b2bf1307de45
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: config
+          mountPath: /etc/trino/config.properties
+          subPath: config.properties
+        - name: config
+          mountPath: /etc/trino/node.properties
+          subPath: node.properties
+        - name: config
+          mountPath: /etc/trino/jvm.config
+          subPath: jvm.config
+        - name: catalog
+          mountPath: /etc/trino/catalog
+        resources:
+          requests:
+            cpu: 500m
+            memory: 2Gi
+          limits:
+            cpu: '2'
+            memory: 3Gi
+        readinessProbe:
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 30
+          timeoutSeconds: 5
+          httpGet:
+            path: /v1/info
+            port: 8080
+            scheme: HTTP
+        livenessProbe:
+          initialDelaySeconds: 180
+          periodSeconds: 10
+          failureThreshold: 6
+          timeoutSeconds: 5
+          httpGet:
+            path: /v1/info
+            port: 8080
+            scheme: HTTP
+      terminationGracePeriodSeconds: 60
+      initContainers:
+      - name: render-catalog
+        image: ghcr.io/o/nda-app@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        command:
+        - sh
+        - -c
+        - python -m marketplace.trino_config write && cp /etc/marketplace/trino/catalog/*.properties
+          /catalog/
+        env:
+        - name: MARKETPLACE_RUNTIME_DIR
+          value: /etc/marketplace
+        - name: MARKETPLACE_OIDC_FILE
+          value: /etc/marketplace/trino_oidc.json
+        - name: MARKETPLACE_CREDENTIALS_FILE
+          value: /etc/marketplace/credentials.json
+        - name: MARKETPLACE_CA_FILE
+          value: /etc/marketplace/trino/tls/marketplace-ca.crt
+        - name: MARKETPLACE_TRINO_HOST
+          value: trino.nda-platform.svc
+        - name: KEYCLOAK_URL
+          value: http://nda-keycloak.nda-platform.svc:8180
+        - name: KEYCLOAK_ADMIN
+          value: admin
+        - name: AUDIT_INGEST_URI
+          value: http://audit.nda-pipeline.svc:8099/v1/query-events
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: AWS_SECRET_ACCESS_KEY
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: KEYCLOAK_ADMIN_PASSWORD
+        volumeMounts:
+        - name: catalog
+          mountPath: /catalog
+        - name: scratch
+          mountPath: /etc/marketplace
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 100m
+            memory: 256Mi
+      volumes:
+      - name: config
+        configMap:
+          name: trino-worker
+      - name: catalog
+        emptyDir: {}
+      - name: scratch
+        emptyDir: {}
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: trino-worker
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trino-discovery
+  namespace: nda-platform
+spec:
+  selector:
+    app: trino-coordinator
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: trino-worker
+  namespace: nda-platform
+spec:
+  selector:
+    matchLabels:
+      app: trino-worker
+  maxUnavailable: 1
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: flink-jobmanager
+  namespace: nda-pipeline
+  labels:
+    app: flink-jobmanager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flink-jobmanager
+  template:
+    metadata:
+      labels:
+        app: flink-jobmanager
+    spec:
+      containers:
+      - name: jobmanager
+        image: ghcr.io/o/nda-flink@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        args:
+        - jobmanager
+        ports:
+        - containerPort: 8081
+        - containerPort: 6123
+        env:
+        - name: FLINK_PROPERTIES
+          value: 'jobmanager.rpc.address: flink-jobmanager.nda-pipeline.svc
+
+            jobmanager.memory.process.size: 1024m
+
+            taskmanager.memory.process.size: 5120m
+
+            taskmanager.numberOfTaskSlots: 2
+
+            taskmanager.memory.managed.fraction: 0.1
+
+            parallelism.default: 1
+
+            state.backend.type: rocksdb
+
+            state.checkpoints.dir: file:///opt/flink/state/checkpoints
+
+            state.savepoints.dir: file:///opt/flink/state/savepoints
+
+            execution.checkpointing.interval: 60s
+
+            execution.checkpointing.externalized-checkpoint-retention: RETAIN_ON_CANCELLATION'
+        - name: AWS_REGION
+          value: us-east-1
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: AWS_SECRET_ACCESS_KEY
+        volumeMounts:
+        - name: state
+          mountPath: /opt/flink/state
+        resources:
+          requests:
+            cpu: 250m
+            memory: 1Gi
+          limits:
+            cpu: '1'
+            memory: 1400Mi
+        readinessProbe:
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          failureThreshold: 6
+          timeoutSeconds: 5
+          httpGet:
+            path: /overview
+            port: 8081
+            scheme: HTTP
+        livenessProbe:
+          initialDelaySeconds: 90
+          periodSeconds: 10
+          failureThreshold: 6
+          timeoutSeconds: 5
+          httpGet:
+            path: /overview
+            port: 8081
+            scheme: HTTP
+      terminationGracePeriodSeconds: 60
+  serviceName: flink-jobmanager
+  podManagementPolicy: Parallel
+  volumeClaimTemplates:
+  - metadata:
+      name: state
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: nda-local
+      resources:
+        requests:
+          storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flink-jobmanager
+  namespace: nda-pipeline
+spec:
+  selector:
+    app: flink-jobmanager
+  ports:
+  - name: ui
+    port: 8081
+    targetPort: 8081
+  - name: rpc
+    port: 6123
+    targetPort: 6123
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flink-taskmanager
+  namespace: nda-pipeline
+  labels:
+    app: flink-taskmanager
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: flink-taskmanager
+  template:
+    metadata:
+      labels:
+        app: flink-taskmanager
+    spec:
+      containers:
+      - name: taskmanager
+        image: ghcr.io/o/nda-flink@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        args:
+        - taskmanager
+        env:
+        - name: FLINK_PROPERTIES
+          value: 'jobmanager.rpc.address: flink-jobmanager.nda-pipeline.svc
+
+            jobmanager.memory.process.size: 1024m
+
+            taskmanager.memory.process.size: 5120m
+
+            taskmanager.numberOfTaskSlots: 2
+
+            taskmanager.memory.managed.fraction: 0.1
+
+            parallelism.default: 1
+
+            state.backend.type: rocksdb
+
+            state.checkpoints.dir: file:///opt/flink/state/checkpoints
+
+            state.savepoints.dir: file:///opt/flink/state/savepoints
+
+            execution.checkpointing.interval: 60s
+
+            execution.checkpointing.externalized-checkpoint-retention: RETAIN_ON_CANCELLATION'
+        - name: AWS_REGION
+          value: us-east-1
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: AWS_SECRET_ACCESS_KEY
+        resources:
+          requests:
+            cpu: 500m
+            memory: 5Gi
+          limits:
+            cpu: '2'
+            memory: 5632Mi
+        readinessProbe:
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 6
+          timeoutSeconds: 5
+          exec:
+            command:
+            - sh
+            - -c
+            - ps aux | grep -q '[T]askManagerRunner'
+      terminationGracePeriodSeconds: 60
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: flink-taskmanager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: connect
+  namespace: nda-pipeline
+  labels:
+    app: connect
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: connect
+  template:
+    metadata:
+      labels:
+        app: connect
+    spec:
+      containers:
+      - name: connect
+        image: quay.io/debezium/connect:3.0.8.Final@sha256:15bf1198757acca522d3e498decbbf7a3a1e20cbf353750fdc28fe18fec4b39d
+        ports:
+        - containerPort: 8083
+        env:
+        - name: BOOTSTRAP_SERVERS
+          value: kafka.nda-platform.svc:9092
+        - name: GROUP_ID
+          value: nda-connect-v1
+        - name: CONFIG_STORAGE_TOPIC
+          value: nda.connect.configs
+        - name: OFFSET_STORAGE_TOPIC
+          value: nda.connect.offsets
+        - name: STATUS_STORAGE_TOPIC
+          value: nda.connect.status
+        - name: CONFIG_STORAGE_REPLICATION_FACTOR
+          value: '3'
+        - name: OFFSET_STORAGE_REPLICATION_FACTOR
+          value: '3'
+        - name: STATUS_STORAGE_REPLICATION_FACTOR
+          value: '3'
+        - name: HEAP_OPTS
+          value: -Xms256m -Xmx512m
+        resources:
+          requests:
+            cpu: 250m
+            memory: 768Mi
+          limits:
+            cpu: '1'
+            memory: 1Gi
+        readinessProbe:
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 20
+          timeoutSeconds: 5
+          httpGet:
+            path: /connectors
+            port: 8083
+            scheme: HTTP
+        livenessProbe:
+          initialDelaySeconds: 120
+          periodSeconds: 10
+          failureThreshold: 6
+          timeoutSeconds: 5
+          httpGet:
+            path: /
+            port: 8083
+            scheme: HTTP
+      terminationGracePeriodSeconds: 60
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: connect
+  namespace: nda-pipeline
+spec:
+  selector:
+    app: connect
+  ports:
+  - name: rest
+    port: 8083
+    targetPort: 8083
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: nda-pipeline
+  labels:
+    app: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+      - name: api
+        image: ghcr.io/o/nda-app@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        command:
+        - python
+        - -m
+        - uvicorn
+        - streaming.api:app
+        - --host
+        - 0.0.0.0
+        - --port
+        - '8000'
+        ports:
+        - containerPort: 8000
+        env:
+        - name: MARKETPLACE_RUNTIME_DIR
+          value: /etc/marketplace
+        - name: MARKETPLACE_TRINO_HOST
+          value: trino.nda-platform.svc
+        - name: MARKETPLACE_REQUIRE_AUTH
+          value: '1'
+        - name: TRINO_HOST
+          value: trino.nda-platform.svc
+        - name: KEYCLOAK_URL
+          value: http://nda-keycloak.nda-platform.svc:8180
+        - name: OPA_URL
+          value: http://opa.nda-pipeline.svc:8181
+        - name: NDA_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: NDA_API_KEY
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: AWS_SECRET_ACCESS_KEY
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            cpu: '1'
+            memory: 1Gi
+        readinessProbe:
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          failureThreshold: 30
+          timeoutSeconds: 5
+          httpGet:
+            path: /health/ready
+            port: 8000
+            scheme: HTTP
+        livenessProbe:
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          failureThreshold: 6
+          timeoutSeconds: 5
+          httpGet:
+            path: /health/live
+            port: 8000
+            scheme: HTTP
+      terminationGracePeriodSeconds: 60
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: nda-pipeline
+spec:
+  selector:
+    app: api
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api
+  namespace: nda-pipeline
+spec:
+  selector:
+    matchLabels:
+      app: api
+  maxUnavailable: 1
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: audit
+  namespace: nda-pipeline
+  labels:
+    app: audit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: audit
+  template:
+    metadata:
+      labels:
+        app: audit
+    spec:
+      containers:
+      - name: audit
+        image: ghcr.io/o/nda-app@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        command:
+        - python
+        - -m
+        - marketplace.audit
+        - serve
+        ports:
+        - containerPort: 8099
+        env:
+        - name: MARKETPLACE_RUNTIME_DIR
+          value: /etc/marketplace
+        - name: MARKETPLACE_TRINO_HOST
+          value: trino.nda-platform.svc
+        - name: MARKETPLACE_REQUIRE_AUTH
+          value: '1'
+        - name: TRINO_HOST
+          value: trino.nda-platform.svc
+        - name: KEYCLOAK_URL
+          value: http://nda-keycloak.nda-platform.svc:8180
+        - name: OPA_URL
+          value: http://opa.nda-pipeline.svc:8181
+        - name: NDA_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: NDA_API_KEY
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: nda-secrets
+              key: AWS_SECRET_ACCESS_KEY
+        - name: AUDIT_LOG_PATH
+          value: /var/lib/audit/query-events.jsonl
+        volumeMounts:
+        - name: audit
+          mountPath: /var/lib/audit
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        readinessProbe:
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          failureThreshold: 30
+          timeoutSeconds: 5
+          httpGet:
+            path: /v1/query-events
+            port: 8099
+            scheme: HTTP
+      terminationGracePeriodSeconds: 60
+  serviceName: audit
+  podManagementPolicy: Parallel
+  volumeClaimTemplates:
+  - metadata:
+      name: audit
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: nda-local
+      resources:
+        requests:
+          storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: audit
+  namespace: nda-pipeline
+spec:
+  selector:
+    app: audit
+  ports:
+  - name: http
+    port: 8099
+    targetPort: 8099

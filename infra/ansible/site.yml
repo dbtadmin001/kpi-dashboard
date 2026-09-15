@@ -1,0 +1,90 @@
+---
+# Bring a set of bare Ubuntu VMs up as a k3s cluster ready to run the platform.
+#
+#   ./run.sh site.yml                 # everything
+#   ./run.sh site.yml --tags prereqs  # just the OS work
+#   ./run.sh site.yml --check         # dry run, changes nothing
+#
+# Re-running is safe: every task is idempotent, so adding a VM to the inventory
+# and running again only configures the new one.
+
+- name: Verify the inventory is filled in before touching anything
+  hosts: localhost
+  gather_facts: false
+  connection: local
+  tags: [always]
+  tasks:
+    # A platform host alone is a complete deployment - that is the single-VM
+    # topology CI verifies. The k3s groups are how it grows later, so requiring
+    # them up front would refuse the configuration people actually start with.
+    - name: The inventory must name at least one host
+      ansible.builtin.assert:
+        that:
+          - (groups['platform'] | default([]) | length
+             + groups['k3s_control'] | default([]) | length) > 0
+        fail_msg: >-
+          inventory/hosts.yml names no hosts. Copy hosts.yml.example and add
+          either a platform host (single-VM deployment) or k3s_control hosts
+          (cluster), then run again.
+
+    - name: Control plane must have an odd member count
+      ansible.builtin.assert:
+        that:
+          - groups['k3s_control'] | length is odd
+        fail_msg: >-
+          {{ groups['k3s_control'] | length }} control hosts: embedded etcd needs
+          an odd number (1 or 3) to hold quorum. Two control nodes are less
+          available than one.
+      when: groups['k3s_control'] | default([]) | length > 0
+
+    - name: Report what will be configured
+      ansible.builtin.debug:
+        msg: >-
+          platform host(s): {{ groups['platform'] | default([]) | length }};
+          cluster: {{ groups['k3s_control'] | default([]) | length }} control +
+          {{ groups['k3s_compute'] | default([]) | length }} compute
+
+- name: Prepare every node
+  hosts: k3s_control:k3s_compute
+  become: true
+  tags: [prereqs]
+  roles:
+    - common
+    - k8s_prereqs
+    - storage
+
+- name: Start the control plane
+  hosts: k3s_control
+  become: true
+  serial: 1
+  tags: [cluster]
+  roles:
+    - k3s_server
+
+- name: Join the compute nodes
+  hosts: k3s_compute
+  become: true
+  tags: [cluster]
+  roles:
+    - k3s_agent
+
+# `k3s_control[0]` is a host PATTERN, not a Jinja index: it selects the first
+# control host and simply matches nothing when the group is empty. Templating
+# groups[...][0] into `hosts` fails at parse time instead, which is why the
+# playbook could not even be syntax-checked without a cluster in the inventory.
+- name: Label nodes and confirm the cluster is healthy
+  hosts: k3s_control[0]
+  become: true
+  tags: [verify]
+  roles:
+    - verify
+
+# The VM that runs the governed stack. Separate from the k3s plays: a host can
+# be a cluster node, a platform host, or both, and the inventory decides.
+- name: Prepare the platform host
+  hosts: platform
+  become: true
+  tags: [platform]
+  roles:
+    - common
+    - platform

@@ -1,0 +1,32 @@
+---
+# Storage for the distributed services lives on each node's own disk. MinIO
+# replicates across nodes itself, so node-local paths are correct here - a
+# shared filesystem underneath would duplicate the replication and halve the
+# usable space.
+- name: Create the local data directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ minio_data_path }}"
+    - /srv/kafka
+    - /srv/flink
+    - /var/lib/rancher/k3s/storage   # k3s local-path provisioner
+
+- name: Measure free space on the data volume
+  ansible.builtin.command: "df -BG --output=avail {{ minio_data_path }}"
+  register: minio_avail
+  changed_when: false
+
+- name: Refuse to label a node for storage if the disk is too small
+  ansible.builtin.assert:
+    that:
+      - (minio_avail.stdout_lines[1] | trim | regex_replace('G$', '') | int) >= (minio_min_free_gb | int)
+    fail_msg: >-
+      {{ inventory_hostname }} has {{ minio_avail.stdout_lines[1] | trim }} free on
+      {{ minio_data_path }} but needs {{ minio_min_free_gb }}G. Either attach a
+      bigger disk or drop nda.io/storage from this host in the inventory.
+  when: (node_labels | default({}))['nda.io/storage'] | default('false') == 'true'

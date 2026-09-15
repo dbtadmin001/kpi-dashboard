@@ -1,0 +1,54 @@
+---
+# Labels are how the manifests target nodes: storage pods land only on nodes
+# with a real data disk, and everything else spreads across the rest.
+- name: Label each node from the inventory
+  ansible.builtin.command: >
+    k3s kubectl label node {{ item }}
+    {% for key, value in (hostvars[item].node_labels | default({})).items() %}{{ key }}={{ value }} {% endfor %}
+    nda.io/compute=true --overwrite
+  loop: "{{ groups['k3s_control'] + groups['k3s_compute'] | default([]) }}"
+  changed_when: false
+  retries: 6
+  delay: 10
+  register: labelling
+  until: labelling.rc == 0
+
+- name: Wait until every node reports Ready
+  ansible.builtin.shell: |
+    set -o pipefail
+    k3s kubectl get nodes --no-headers | awk '{print $2}' | grep -cv '^Ready$' || true
+  args:
+    executable: /bin/bash
+  register: not_ready
+  changed_when: false
+  retries: 30
+  delay: 10
+  until: not_ready.stdout | trim == "0"
+
+- name: Show the finished cluster
+  ansible.builtin.command: k3s kubectl get nodes -o wide
+  register: cluster_nodes
+  changed_when: false
+
+- name: Cluster is ready
+  ansible.builtin.debug:
+    msg: "{{ cluster_nodes.stdout_lines }}"
+
+- name: Count nodes carrying storage
+  ansible.builtin.shell: |
+    set -o pipefail
+    k3s kubectl get nodes -l nda.io/storage=true --no-headers | wc -l
+  args:
+    executable: /bin/bash
+  register: storage_nodes
+  changed_when: false
+
+# MinIO erasure coding needs at least four drives to tolerate a node loss.
+# Fewer than four is a valid cluster, just not a fault-tolerant object store.
+- name: Warn if the object store cannot tolerate a node failure
+  ansible.builtin.debug:
+    msg: >-
+      {{ storage_nodes.stdout | trim }} storage node(s) labelled. MinIO needs 4
+      to survive losing one. With fewer, deploy it with MINIO_REPLICAS=1 and
+      treat object storage as single-node until more VMs join.
+  when: (storage_nodes.stdout | trim | int) < 4

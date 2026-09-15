@@ -1,0 +1,100 @@
+---
+# The kubelet refuses to start with swap on, because the scheduler's memory
+# accounting becomes meaningless once the kernel can page a pod out.
+- name: Disable swap for this boot
+  ansible.builtin.command: swapoff -a
+  changed_when: false
+  failed_when: false
+
+- name: Keep swap off across reboots
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\sswap\s.*)$'
+    replace: '# \1'
+
+- name: Load the kernel modules the container network needs
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop: [overlay, br_netfilter]
+  failed_when: false
+
+- name: Load those modules on every boot
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k8s.conf
+    mode: "0644"
+    content: |
+      overlay
+      br_netfilter
+
+- name: Apply the sysctls Kubernetes networking depends on
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-kubernetes.conf
+    reload: true
+    state: present
+  loop:
+    # Without bridged traffic traversing iptables, Service routing silently
+    # fails for pods on the same node.
+    - { key: net.bridge.bridge-nf-call-iptables, value: "1" }
+    - { key: net.bridge.bridge-nf-call-ip6tables, value: "1" }
+    - { key: net.ipv4.ip_forward, value: "1" }
+    # Elasticsearch/OpenSearch and Flink RocksDB both need a high map count.
+    - { key: vm.max_map_count, value: "262144" }
+    - { key: fs.inotify.max_user_instances, value: "1024" }
+    - { key: fs.inotify.max_user_watches, value: "524288" }
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Check the node has enough memory to be useful
+  ansible.builtin.assert:
+    that:
+      - ansible_memtotal_mb >= 3500
+    fail_msg: >-
+      {{ inventory_hostname }} has {{ ansible_memtotal_mb }}MB. Give each VM at
+      least 4GB, or the distributed services will be evicted under load.
+    success_msg: "{{ inventory_hostname }}: {{ ansible_memtotal_mb }}MB RAM, {{ ansible_processor_vcpus }} vCPU"
+
+# ---------------------------------------------------------------------------
+# Firewall.
+#
+# Nothing here opened a port, which works on a stock Ubuntu cloud image because
+# ufw ships inactive - and fails mysteriously on a hardened one, because the
+# cluster simply never forms and no task reports an error. These rules are
+# applied only when ufw is actually active, so on an image without it they are
+# a no-op rather than a new dependency.
+#
+# 8472/udp is the one people forget: flannel's VXLAN backend carries all pod
+# traffic over it, so without it pods schedule, start, and cannot reach each
+# other across nodes.
+# ---------------------------------------------------------------------------
+- name: Is ufw managing this host?
+  ansible.builtin.command: ufw status
+  register: ufw_status
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Open the ports k3s needs between nodes
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+    comment: "{{ item.why }}"
+  loop:
+    - { port: "6443", proto: tcp, why: "Kubernetes API" }
+    - { port: "10250", proto: tcp, why: "kubelet" }
+    - { port: "8472", proto: udp, why: "flannel VXLAN - pod-to-pod across nodes" }
+    - { port: "2379:2380", proto: tcp, why: "embedded etcd between control nodes" }
+  loop_control:
+    label: "{{ item.port }}/{{ item.proto }} ({{ item.why }})"
+  when: "'Status: active' in (ufw_status.stdout | default(''))"
+
+- name: Report when the firewall was left alone
+  ansible.builtin.debug:
+    msg: >-
+      ufw is not active on {{ inventory_hostname }}, so no rules were added. If
+      you enable it later, open 6443/tcp, 10250/tcp, 8472/udp and 2379:2380/tcp
+      or the cluster will stop forming without saying why.
+  when: "'Status: active' not in (ufw_status.stdout | default(''))"

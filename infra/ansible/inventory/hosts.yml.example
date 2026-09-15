@@ -1,0 +1,65 @@
+# ---------------------------------------------------------------------------
+# THE ONLY FILE YOU NEED TO EDIT AT HANDOFF.
+#
+#   cp hosts.yml.example hosts.yml     and fill in the names and static IPs.
+#
+# Rules:
+#   * The FIRST host under k3s_control becomes the cluster control plane.
+#     Put three there (never two) if you want a highly available control plane;
+#     embedded etcd needs an odd number to hold quorum.
+#   * Every host under k3s_compute joins as a worker and immediately becomes
+#     schedulable, so adding a VM later is: add a line here, re-run the play.
+#   * ansible_host must be the STATIC IP. The name is what Kubernetes will call
+#     the node, so use the real hostname you set on the VM.
+# ---------------------------------------------------------------------------
+all:
+  vars:
+    ansible_user: ubuntu
+    ansible_ssh_private_key_file: ~/.ssh/id_rsa
+    ansible_python_interpreter: /usr/bin/python3
+
+    # Advertised address of the control plane. Leave as-is to use the first
+    # control host's ansible_host.
+    k3s_api_advertise_ip: "{{ hostvars[groups['k3s_control'][0]].ansible_host }}"
+
+    # Pin the Kubernetes version so a later run cannot silently upgrade a
+    # running cluster underneath you.
+    k3s_version: v1.31.5+k3s1
+
+    # Nodes with this much free space get a MinIO data directory. Storage lives
+    # on the node; MinIO does the replication, not the filesystem.
+    minio_data_path: /srv/minio
+    minio_min_free_gb: 20
+
+k3s_control:
+  hosts:
+    # nda-node-1:
+    #   ansible_host: 192.168.1.101
+    #   node_labels:
+    #     nda.io/storage: "true"
+
+k3s_compute:
+  hosts:
+    # nda-node-2:
+    #   ansible_host: 192.168.1.102
+    #   node_labels:
+    #     nda.io/storage: "true"
+    # nda-node-3:
+    #   ansible_host: 192.168.1.103
+    #   node_labels:
+    #     nda.io/storage: "true"
+    # nda-node-4:
+    #   ansible_host: 192.168.1.104
+    #   node_labels:
+    #     nda.io/storage: "true"
+
+# ---------------------------------------------------------------------------
+# The VM that RUNS the platform. One host, 16GB. Today this is the whole
+# deployment; the k3s groups above are the path to spreading it across more.
+# A host may appear here and under k3s_control - they are different jobs, not
+# different machines.
+# ---------------------------------------------------------------------------
+platform:
+  hosts:
+    # nda-app-1:
+    #   ansible_host: 192.168.1.100

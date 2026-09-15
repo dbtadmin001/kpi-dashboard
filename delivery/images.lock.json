@@ -1,0 +1,14 @@
+{
+  "platform": "linux/amd64",
+  "python": "python:3.11.13-slim-bookworm@sha256:86adf8dbadc3d6e82ee5dd2c74bec2e1c2467cdad47886280501df722372d2e1",
+  "flink": "flink:1.20.1-scala_2.12-java17@sha256:d51a693da76581f2483d3f83d5997d3226b076a9f990a7f7d1eed144434b8e1e",
+  "trino": "trinodb/trino:455@sha256:cb08dfd4bd58fb4bec5df09457347c6f353f82d91495305e7648b2bf1307de45",
+  "keycloak": "quay.io/keycloak/keycloak:26.7.3@sha256:29be7252db0a106f1cd2ac17b9a56ff2668073da645638a38b9fc67deeb2d6c4",
+  "connect": "quay.io/debezium/connect:3.0.8.Final@sha256:15bf1198757acca522d3e498decbbf7a3a1e20cbf353750fdc28fe18fec4b39d",
+  "kafka": "docker.redpanda.com/redpandadata/redpanda:v24.2.10@sha256:6d627e3ebdc05438d1e8e3b55695ac1a7a0f79e7d5ca90b3b0f12dc984633e83",
+  "sqlserver": "mcr.microsoft.com/mssql/server:2022-CU18-ubuntu-22.04@sha256:ea73825f3d88a23c355ac2f9fdc6bd960fec90171c12c572109b36a558f77bb8",
+  "minio": "minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e",
+  "postgres": "postgres:15@sha256:9b1d34adbce1dd07ee6e94b4a2cf698884b89bd44a6c9c12f5da8f3acbfe4957",
+  "catalog_base": "tabulario/iceberg-rest:1.6.0@sha256:3b7d31bdfec626b68e97531c9778a1b9119659e456fe28545a49f6aa6a9ce472",
+  "opa": "openpolicyagent/opa:1.20.2@sha256:7b15f9d96345dfa639322ad97f65a0b38260f95efcdd7f5c24e284228708f06c"
+}

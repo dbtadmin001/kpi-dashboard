@@ -1,0 +1,16 @@
+---
+- name: Join this node to the cluster as a worker
+  ansible.builtin.shell: >
+    curl -sfL https://get.k3s.io |
+    INSTALL_K3S_VERSION={{ k3s_version }}
+    K3S_URL=https://{{ k3s_api_advertise_ip }}:6443
+    K3S_TOKEN={{ hostvars[groups['k3s_control'][0]].k3s_token }}
+    sh -s - agent
+    --node-ip {{ ansible_host }}
+  args:
+    creates: /usr/local/bin/k3s-agent
+
+- name: Wait for the kubelet to come up
+  ansible.builtin.wait_for:
+    path: /var/lib/kubelet/config.yaml
+    timeout: 300

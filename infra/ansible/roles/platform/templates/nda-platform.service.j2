@@ -1,0 +1,20 @@
+# Brings the platform back after a reboot, and gives the operator one verb for
+# starting and stopping it. `--wait` blocks until every healthcheck passes, so a
+# failed start is a failed unit rather than a silently half-running stack.
+[Unit]
+Description=NDA regulatory data platform
+Requires=docker.service
+After=docker.service network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+User={{ platform_user }}
+WorkingDirectory={{ platform_runtime }}
+ExecStart=/usr/bin/docker compose -f {{ platform_runtime }}/compose.yaml -p {{ platform_project }} up -d --wait
+ExecStop=/usr/bin/docker compose -f {{ platform_runtime }}/compose.yaml -p {{ platform_project }} stop
+TimeoutStartSec=900
+
+[Install]
+WantedBy=multi-user.target

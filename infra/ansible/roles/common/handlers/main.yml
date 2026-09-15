@@ -1,0 +1,6 @@
+# update-ca-certificates rebuilds both the OpenSSL bundle and the Java cacerts
+# store on Debian/Ubuntu, which is what the Trino JDBC driver reads when a client
+# passes SSLUseSystemTrustStore=true.
+- name: Refresh CA trust
+  ansible.builtin.command: update-ca-certificates
+  changed_when: true

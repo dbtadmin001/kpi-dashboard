@@ -1,0 +1,107 @@
+---
+# The first control host initialises the cluster; any further control hosts
+# join it. Embedded etcd means no external database to run or back up.
+- name: Decide whether this host bootstraps the cluster
+  ansible.builtin.set_fact:
+    is_first_server: "{{ inventory_hostname == groups['k3s_control'][0] }}"
+
+- name: Look for an existing k3s install
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
+# The join token must SURVIVE a re-run. `lookup('password', '/dev/null')` returns
+# a new random string every time it is evaluated, so generating unconditionally
+# meant the second run invented a token the cluster had never seen - the existing
+# nodes kept working (the install is guarded by `creates:`) while any node added
+# later failed to join. Adding a VM and re-running is the whole point of this
+# playbook, so the running cluster is the source of truth for its own token.
+- name: Read the token from a cluster that is already running
+  ansible.builtin.slurp:
+    src: /var/lib/rancher/k3s/server/token
+  register: existing_token
+  when: is_first_server | bool and k3s_binary.stat.exists
+  failed_when: false
+
+- name: Adopt the existing cluster token
+  ansible.builtin.set_fact:
+    k3s_token: "{{ existing_token.content | b64decode | trim }}"
+  when:
+    - is_first_server | bool
+    - existing_token.content is defined
+  run_once: true
+  delegate_to: "{{ groups['k3s_control'][0] }}"
+  delegate_facts: true
+
+- name: Generate a token for a cluster that does not exist yet
+  ansible.builtin.set_fact:
+    k3s_token: "{{ lookup('password', '/dev/null length=48 chars=ascii_letters,digits') }}"
+  when:
+    - is_first_server | bool
+    - existing_token.content is not defined
+  run_once: true
+  delegate_to: "{{ groups['k3s_control'][0] }}"
+  delegate_facts: true
+
+- name: Fail clearly rather than joining with a token nobody knows
+  ansible.builtin.assert:
+    that:
+      - hostvars[groups['k3s_control'][0]].k3s_token | default('') | length > 0
+    fail_msg: >-
+      No cluster token. The bootstrap node has k3s installed but
+      /var/lib/rancher/k3s/server/token could not be read - check it is running,
+      or remove k3s from that host to build a new cluster.
+
+- name: Install the bootstrap control plane
+  ansible.builtin.shell: >
+    curl -sfL https://get.k3s.io |
+    INSTALL_K3S_VERSION={{ k3s_version }}
+    K3S_TOKEN={{ hostvars[groups['k3s_control'][0]].k3s_token }}
+    sh -s - server
+    --cluster-init
+    --node-ip {{ ansible_host }}
+    --advertise-address {{ k3s_api_advertise_ip }}
+    --tls-san {{ k3s_api_advertise_ip }}
+    --write-kubeconfig-mode 0600
+    --disable traefik
+  args:
+    creates: /usr/local/bin/k3s
+  when: is_first_server | bool
+
+- name: Wait for the API server to answer
+  ansible.builtin.wait_for:
+    port: 6443
+    host: "{{ ansible_host }}"
+    timeout: 300
+  when: is_first_server | bool
+
+- name: Join the remaining control-plane members
+  ansible.builtin.shell: >
+    curl -sfL https://get.k3s.io |
+    INSTALL_K3S_VERSION={{ k3s_version }}
+    K3S_TOKEN={{ hostvars[groups['k3s_control'][0]].k3s_token }}
+    sh -s - server
+    --server https://{{ k3s_api_advertise_ip }}:6443
+    --node-ip {{ ansible_host }}
+    --tls-san {{ k3s_api_advertise_ip }}
+    --write-kubeconfig-mode 0600
+    --disable traefik
+  args:
+    creates: /usr/local/bin/k3s
+  when: not (is_first_server | bool)
+
+- name: Fetch the kubeconfig for the operator
+  ansible.builtin.fetch:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "{{ playbook_dir }}/kubeconfig"
+    flat: true
+  when: is_first_server | bool
+
+- name: Point the fetched kubeconfig at the real API address
+  ansible.builtin.replace:
+    path: "{{ playbook_dir }}/kubeconfig"
+    regexp: '127\.0\.0\.1'
+    replace: "{{ k3s_api_advertise_ip }}"
+  delegate_to: localhost
+  become: false
+  when: is_first_server | bool

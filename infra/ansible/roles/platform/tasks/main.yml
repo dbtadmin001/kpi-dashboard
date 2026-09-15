@@ -1,0 +1,121 @@
+---
+# Prepare an Ubuntu VM to RUN the platform (as opposed to joining a k3s cluster).
+#
+# The governed architecture ships as the Compose topology that delivery/ builds
+# and CI verifies. This role makes a bare VM able to receive it: Docker from
+# Docker's own repository, a persistent runtime directory, a deploy account that
+# is not root, and a systemd unit so the stack comes back after a reboot.
+#
+#   ./run.sh site.yml --tags platform --limit nda-app-1
+
+- name: Install Docker's signing key
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: "0644"
+
+- name: Add Docker's apt repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}
+      signed-by=/etc/apt/keyrings/docker.asc]
+      https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+    filename: docker
+    state: present
+
+# The compose PLUGIN, not docker-compose v1: delivery/ renders `depends_on`
+# conditions and `--wait`, which the standalone v1 binary does not understand.
+- name: Install Docker Engine and the compose plugin
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+
+- name: Keep Docker running across reboots
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+# Container logs will fill a small VM's root disk before anything else does.
+- name: Cap container log growth
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    mode: "0644"
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {"max-size": "10m", "max-file": "3"},
+        "live-restore": true
+      }
+  notify: Restart Docker
+
+- name: Create the deploy account
+  ansible.builtin.user:
+    name: "{{ platform_user }}"
+    groups: docker
+    append: true
+    shell: /bin/bash
+    create_home: true
+
+# /var/lib, never /run. This holds secrets.env, the OIDC client, the TLS
+# keystore, the rendered Trino config and the audit log; /run is a tmpfs, so
+# putting them there loses every one of them at the next reboot.
+- name: Create the runtime directory
+  ansible.builtin.file:
+    path: "{{ platform_runtime }}"
+    state: directory
+    owner: "{{ platform_user }}"
+    group: "{{ platform_user }}"
+    mode: "0750"
+
+- name: Create the directories the stack writes into
+  ansible.builtin.file:
+    path: "{{ platform_runtime }}/{{ item }}"
+    state: directory
+    owner: "{{ platform_user }}"
+    group: "{{ platform_user }}"
+    mode: "0750"
+  loop: [audit, marketplace, public-tls, policy]
+
+- name: Check the VM is big enough to run the whole platform
+  ansible.builtin.assert:
+    that:
+      - ansible_memtotal_mb >= 15000
+    fail_msg: >-
+      {{ inventory_hostname }} has {{ ansible_memtotal_mb }}MB. The single-VM
+      topology reserves about 15GB across SQL Server, Flink, Trino, Kafka and
+      Keycloak. Give it 16GB, or split the workload across the cluster instead.
+    success_msg: "{{ inventory_hostname }}: {{ ansible_memtotal_mb }}MB RAM, {{ ansible_processor_vcpus }} vCPU"
+
+- name: Install the systemd unit that brings the stack up at boot
+  ansible.builtin.template:
+    src: nda-platform.service.j2
+    dest: /etc/systemd/system/nda-platform.service
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Is ufw managing this host?
+  ansible.builtin.command: ufw status
+  register: ufw_status
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Open the ports users connect to
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: tcp
+    comment: "{{ item.why }}"
+  loop:
+    - { port: "8443", why: "Trino - governed SQL" }
+    - { port: "8444", why: "Keycloak - sign-in" }
+  loop_control:
+    label: "{{ item.port }}/tcp ({{ item.why }})"
+  when: "'Status: active' in (ufw_status.stdout | default(''))"

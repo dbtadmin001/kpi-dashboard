@@ -1,0 +1,79 @@
+---
+- name: Set the hostname to the inventory name
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"
+
+# Every node resolves every other node by name. Kubernetes tolerates DNS being
+# absent far better than it tolerates DNS being wrong, and on a home network
+# there is usually no internal resolver at all.
+- name: Map every cluster node in /etc/hosts
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} NDA CLUSTER"
+    block: |
+      {% for host in groups['k3s_control'] + groups['k3s_compute'] | default([]) %}
+      {{ hostvars[host].ansible_host }} {{ host }}
+      {% endfor %}
+
+- name: Install the packages the platform and its operators need
+  ansible.builtin.apt:
+    name:
+      - curl
+      - ca-certificates
+      - gnupg
+      - open-iscsi      # required by most CSI drivers
+      - nfs-common
+      - jq
+      - chrony          # clock skew breaks TLS and etcd before anything else
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Keep clocks synchronised
+  ansible.builtin.service:
+    name: chrony
+    state: started
+    enabled: true
+
+- name: Raise file and process limits for data services
+  ansible.builtin.copy:
+    dest: /etc/security/limits.d/99-nda.conf
+    mode: "0644"
+    content: |
+      # Kafka, MinIO and Flink all open far more files than the default 1024.
+      *  soft  nofile  65536
+      *  hard  nofile  65536
+      *  soft  nproc   32768
+      *  hard  nproc   32768
+
+# ---------------------------------------------------------------------------
+# Trust the marketplace CA.
+#
+# This is what makes single sign-on usable from SQL clients. With the CA in the
+# machine trust store, every client on the host connects with
+# SSLUseSystemTrustStore=true and externalAuthentication=true - the same settings
+# for every person, no trust store file to distribute and no bearer token to
+# reissue. Distributing trust is a fleet concern, so it belongs here rather than
+# in any individual's hands.
+#
+# Skipped when the CA has not been generated, so the play still runs on a
+# machine that is not a marketplace client.
+# ---------------------------------------------------------------------------
+- name: Look for the marketplace CA
+  ansible.builtin.stat:
+    path: "{{ marketplace_ca_source }}"
+  delegate_to: localhost
+  become: false
+  register: marketplace_ca
+  tags: [ca_trust]
+
+- name: Install the marketplace CA into the system trust store
+  ansible.builtin.copy:
+    src: "{{ marketplace_ca_source }}"
+    dest: /usr/local/share/ca-certificates/nda-marketplace-ca.crt
+    owner: root
+    group: root
+    mode: "0644"
+  when: marketplace_ca.stat.exists
+  notify: Refresh CA trust
+  tags: [ca_trust]

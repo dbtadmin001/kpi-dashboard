@@ -1,0 +1,32 @@
+[
+  {
+    "name": "iceberg-flink-runtime-1.20-1.9.2.jar",
+    "url": "https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-flink-runtime-1.20/1.9.2/iceberg-flink-runtime-1.20-1.9.2.jar",
+    "sha256": "5ec33ae836c06fc5bc2144fac1a1960f813ef29c0a26852303af84e2ae59cdc5",
+    "path": "streaming/jars/iceberg-flink-runtime-1.20-1.9.2.jar"
+  },
+  {
+    "name": "iceberg-aws-bundle-1.9.2.jar",
+    "url": "https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-aws-bundle/1.9.2/iceberg-aws-bundle-1.9.2.jar",
+    "sha256": "ea5b6fec1b547e2fe936f804c737943f5ee322d038560f63a8261deb766def1b",
+    "path": "streaming/jars/iceberg-aws-bundle-1.9.2.jar"
+  },
+  {
+    "name": "flink-sql-connector-kafka-3.3.0-1.20.jar",
+    "url": "https://repo.maven.apache.org/maven2/org/apache/flink/flink-sql-connector-kafka/3.3.0-1.20/flink-sql-connector-kafka-3.3.0-1.20.jar",
+    "sha256": "1086f3eee73d727e234860fcd03adafc0d76f2fc70a25d39c36427693fff749d",
+    "path": "streaming/jars/flink-sql-connector-kafka-3.3.0-1.20.jar"
+  },
+  {
+    "name": "flink-shaded-hadoop-2-uber-2.8.3-10.0.jar",
+    "url": "https://repo.maven.apache.org/maven2/org/apache/flink/flink-shaded-hadoop-2-uber/2.8.3-10.0/flink-shaded-hadoop-2-uber-2.8.3-10.0.jar",
+    "sha256": "492b2a559f2a1dad3808b51d9a26a575dbb1202004c9f85f5059c520e0632127",
+    "path": "streaming/jars/flink-shaded-hadoop-2-uber-2.8.3-10.0.jar"
+  },
+  {
+    "name": "postgresql-42.7.5.jar",
+    "url": "https://repo.maven.apache.org/maven2/org/postgresql/postgresql/42.7.5/postgresql-42.7.5.jar",
+    "sha256": "69020b3bd20984543e817393f2e6c01a890ef2e37a77dd11d6d8508181d079ab",
+    "path": "delivery/vendor/postgresql.jar"
+  }
+]
