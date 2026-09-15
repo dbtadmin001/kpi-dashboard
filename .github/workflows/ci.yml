@@ -66,6 +66,7 @@ jobs:
           pip install uv
           uv pip compile delivery/requirements.in --python-version 3.11 \
             --python-platform x86_64-manylinux_2_28 --generate-hashes \
+            --constraint delivery/requirements.lock \
             -o /tmp/requirements.lock
           strip() { grep -vE '^[[:space:]]*#' "$1" | grep -v '^$'; }
           diff -u <(strip delivery/requirements.lock) <(strip /tmp/requirements.lock) \
