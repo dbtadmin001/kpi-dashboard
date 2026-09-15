@@ -96,6 +96,10 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
         # SQL client runs in its own container. It must submit through the
         # JobManager DNS name, never the wildcard bind address (0.0.0.0).
         "rest.address: jobmanager", "rest.port: 8081",
+        # The SQL client defaults to an embedded local executor. This pipeline
+        # is a standalone session cluster, so submit the StatementSet to its
+        # JobManager and let the TaskManager own checkpoint state.
+        "execution.target: remote",
         "taskmanager.memory.process.size: 5120m", "taskmanager.numberOfTaskSlots: 2",
         "taskmanager.memory.managed.fraction: 0.1", "parallelism.default: 1",
         "state.backend.type: rocksdb", "state.checkpoints.dir: file:///opt/flink/state/checkpoints",
@@ -134,7 +138,7 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
         # root, so initialize its ownership before any stateful JVM starts.
         "flink-init": service("flink", entrypoint=["bash", "-lc"], command=[
             "mkdir -p /opt/flink/state/checkpoints /opt/flink/state/savepoints && "
-            "chown -R 999:999 /opt/flink/state"], user="0:0",
+            "chown -R 999:999 /opt/flink/state && chmod -R u+rwX,g+rwX /opt/flink/state"], user="0:0",
             volumes=["flink-state:/opt/flink/state"], mem_limit="256m", restart="no"),
         "jobmanager": service("flink", command="jobmanager", env_file=secret_env,
             environment={"FLINK_PROPERTIES": flink_properties}, volumes=["flink-state:/opt/flink/state"], mem_limit="1400m"),

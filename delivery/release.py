@@ -134,10 +134,6 @@ def verify(keep=False):
                             "delivery.bootstrap", *step], env=env)
         _run(compose + ["up", "-d", "--wait"], env=env)          # read the rendered config
         try:
-            # The SQL client is a one-shot submitter. Waiting for its exit
-            # catches a bad JobManager endpoint immediately instead of making
-            # the reconciliation poll for ten minutes against empty tables.
-            _run(compose + ["wait", "flink-sql"], env=env)
             _run(compose + ["run", "--rm", "--no-deps", "tools"], env=env) # the integration gate
         except subprocess.CalledProcessError:
             # Reconciliation failures are often downstream of the streaming
