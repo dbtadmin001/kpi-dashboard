@@ -214,6 +214,45 @@ def credentials(results):
            and values.get("AWS_SECRET_ACCESS_KEY") == values.get("MINIO_ROOT_PASSWORD"))
 
 
+def streaming_runtime(results):
+    """The Flink services must carry what the Iceberg sink needs to reach S3.
+
+    iceberg-aws-bundle resolves a region through the AWS SDK provider chain,
+    which reads the environment. With none set it throws "Unable to load region
+    from any of the providers in the chain", the tasks restart forever, silver
+    never fills, and the failure surfaces ten minutes later as a reconciliation
+    timeout that names neither S3 nor a region. Reproduced and fixed against a
+    real session cluster; this keeps it fixed.
+    """
+    from delivery.compose import cdc_topics, topology
+
+    spec = topology("nda-ci-validate", "/tmp/runtime",
+                    {"app": "a", "flink": "f", "catalog": "c"})
+    # FLINK_PROPERTIES marks the services that actually run a Flink JVM, and so
+    # the ones that load the Iceberg sink. flink-init shares the image but only
+    # prepares a directory, and needs no credentials of any kind.
+    flink = [n for n, d in spec["services"].items()
+             if "FLINK_PROPERTIES" in d.get("environment", {})]
+    missing = [n for n in flink
+               if spec["services"][n]["environment"].get("AWS_REGION") is None]
+    _check(results, "every Flink service declares an AWS region", not missing,
+           ", ".join(missing))
+
+    # The SQL job reads these by name. If a source table is added without its
+    # topic, the job fails at runtime with a metadata lookup, not at submission.
+    topics = cdc_topics()
+    creator = spec["services"]["kafka-init"]["command"][0]
+    absent = [t for t in topics if t not in creator]
+    _check(results, "every CDC topic is created before the job that reads it",
+           not absent and len(topics) > 0, ", ".join(absent) or f"{len(topics)} topics")
+    _check(results, "the SQL job waits for topic creation to finish",
+           spec["services"]["flink-sql"]["depends_on"].get("kafka-init", {}).get("condition")
+           == "service_completed_successfully")
+    # Topic creation talks to the broker, so "started" is not good enough.
+    _check(results, "Kafka is waited on by readiness, not by process start",
+           "healthcheck" in spec["services"]["kafka"])
+
+
 def governance(results):
     """The access-rule invariants, checked without a cluster."""
     from marketplace.build import access_rules
@@ -294,6 +333,7 @@ def main():
     build_inputs(results)
     deployment_guards(results)
     credentials(results)
+    streaming_runtime(results)
     kubernetes(results)
     governance(results)
 

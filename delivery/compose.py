@@ -122,6 +122,15 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
         "execution.checkpointing.incremental: false",
         "execution.checkpointing.externalized-checkpoint-retention: RETAIN_ON_CANCELLATION",
     ])
+    # The Iceberg sink runs inside the Flink JVMs. iceberg-aws-bundle resolves a
+    # region through the AWS SDK provider chain, which reads the environment -
+    # and with nothing set it throws "Unable to load region from any of the
+    # providers in the chain", restarting the tasks forever while the source
+    # keeps reading. Silver then never matches source and reconciliation blames
+    # itself. The credentials arrive from secrets.env; only the region is ours
+    # to state, and it is the same one iceberg-rest and the dev stack declare.
+    flink_aws = {"AWS_REGION": "us-east-1"}
+
     s = {
         "postgres": service("postgres", name="postgres", env_file=secret_env,
             environment={"POSTGRES_USER": "nda", "POSTGRES_DB": "nda"},
@@ -157,9 +166,9 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
             "chown -R 9999:9999 /opt/flink/state && chmod -R u+rwX,g+rwX /opt/flink/state"], user="0:0",
             volumes=["flink-state:/opt/flink/state"], mem_limit="256m", restart="no"),
         "jobmanager": service("flink", command="jobmanager", env_file=secret_env,
-            environment={"FLINK_PROPERTIES": flink_properties}, volumes=["flink-state:/opt/flink/state"], mem_limit="1400m"),
+            environment={"FLINK_PROPERTIES": flink_properties, **flink_aws}, volumes=["flink-state:/opt/flink/state"], mem_limit="1400m"),
         "taskmanager": service("flink", command="taskmanager", env_file=secret_env,
-            environment={"FLINK_PROPERTIES": flink_properties}, volumes=["flink-state:/opt/flink/state"], mem_limit="5632m"),
+            environment={"FLINK_PROPERTIES": flink_properties, **flink_aws}, volumes=["flink-state:/opt/flink/state"], mem_limit="5632m"),
         # Create the CDC topics before anything reads them.
         #
         # Debezium creates a topic when it emits that table's first record, and
@@ -191,7 +200,8 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
         "flink-sql": service("flink", command=["bash", "-lc",
             "mkdir -p /opt/flink/state/checkpoints /opt/flink/state/savepoints && "
             "exec /opt/flink/bin/sql-client.sh -f /opt/nda/medallion.sql"],
-            env_file=secret_env, environment={"FLINK_PROPERTIES": flink_properties},
+            env_file=secret_env,
+            environment={"FLINK_PROPERTIES": flink_properties, **flink_aws},
             volumes=["flink-state:/opt/flink/state"], mem_limit="1400m", restart="no"),
         "keycloak": service("keycloak", name="keycloak", env_file=secret_env,
             command=["start", "--http-enabled=true", "--http-port=8180",
