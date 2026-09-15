@@ -65,7 +65,11 @@ def images(built=None):
     path = ROOT / "delivery/images.built.json"
     if built is None and path.exists():
         built = json.loads(path.read_text(encoding="utf-8"))
-    return UNBUILT | base | (built or {})
+    # UNBUILT must beat the lock, not lose to it. `flink` names the BASE image
+    # there - the build layers our Iceberg jars and the medallion SQL on top of
+    # it - so falling back to the lock would silently run a Flink with none of
+    # that, which starts cleanly and processes nothing.
+    return base | UNBUILT | (built or {})
 
 
 # --------------------------------------------------------------------------

@@ -17,7 +17,18 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
     runtime = (Path(runtime).as_posix() if Path(runtime).is_absolute()
                or str(runtime).startswith("/")
                else Path(runtime).resolve().as_posix())
-    base = json.loads((ROOT / "delivery/images.lock.json").read_text()) | images
+    # `flink` and `catalog_base` in the lock are BUILD bases, not runtime images:
+    # the build layers our Iceberg jars and the Postgres driver onto them. So a
+    # caller must supply app/flink/catalog, and asking for one that was not
+    # supplied is an error rather than a quiet fall back to a base image that
+    # starts cleanly and processes nothing.
+    supplied = json.loads((ROOT / "delivery/images.lock.json").read_text()) | images
+    missing = [k for k in ("app", "flink", "catalog") if k not in images]
+    if missing:
+        raise ValueError(
+            f"no built image supplied for {', '.join(missing)} - "
+            "run `python -m delivery.release build` first")
+    base = supplied
     if production and any("@sha256:" not in base[k] for k in ("app", "flink", "catalog")):
         raise ValueError("Deployment requires immutable app/flink/catalog image digests")
     shared = {

@@ -1112,7 +1112,7 @@ spec:
     spec:
       containers:
       - name: jobmanager
-        image: flink:1.20.1-scala_2.12-java17@sha256:d51a693da76581f2483d3f83d5997d3226b076a9f990a7f7d1eed144434b8e1e
+        image: nda-flink:UNBUILT
         args:
         - jobmanager
         ports:
@@ -1230,7 +1230,7 @@ spec:
     spec:
       containers:
       - name: taskmanager
-        image: flink:1.20.1-scala_2.12-java17@sha256:d51a693da76581f2483d3f83d5997d3226b076a9f990a7f7d1eed144434b8e1e
+        image: nda-flink:UNBUILT
         args:
         - taskmanager
         env:
