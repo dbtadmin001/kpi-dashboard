@@ -415,8 +415,8 @@ dbt-core==1.12.4 \
     #   -r delivery/requirements.in
     #   dbt-metricflow
     #   dbt-trino
-dbt-core-experimental-parser==2.0.1 \
-    --hash=sha256:fd184ab88e270b713bdea810cc7641b8c501b89282eef870c447501c38942b6e
+dbt-core-experimental-parser==2.0.2 \
+    --hash=sha256:bd480029fcefd4eefb8327828b9613479c420851ada93832f2981a6afdc67161
     # via dbt-core
 dbt-extractor==0.6.0 \
     --hash=sha256:05bcfab7ebd70296ceb31742e8333ba66a2c939de44e61a7088bebafa939aaf6 \
