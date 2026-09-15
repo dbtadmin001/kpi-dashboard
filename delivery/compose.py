@@ -62,8 +62,17 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
         "minio": "curl -fsS http://localhost:9000/minio/health/live",
         "keycloak": "exec 3<>/dev/tcp/localhost/8180",
         "connect": "curl -fsS http://localhost:8083/connectors",
-        "opa": "wget -qO- http://localhost:8181/health >/dev/null",
-        "iceberg-rest": "curl -fsS http://localhost:8181/v1/config",
+        # OPA is deliberately absent: its image is distroless and has no shell at
+        # all, so no CMD-SHELL healthcheck can run in it. Its dependents fall back
+        # to `service_started`, and readiness is proven by the first policy query.
+        # This image has no curl and its /bin/sh is dash, so the obvious check
+        # can never pass - and a healthcheck that can never pass is worse than
+        # none, because depends_on then waits forever and the failure reads as
+        # "iceberg-rest is unhealthy" rather than "your check is wrong".
+        # bash is present, so this asks the kernel to open the port instead.
+        # Readiness beyond "listening" is proven at the application level by
+        # delivery/wait.py, which is the more honest place for it anyway.
+        "iceberg-rest": "bash -c 'exec 3<>/dev/tcp/localhost/8181'",
     }
 
     def service(image, name=None, **kwargs):

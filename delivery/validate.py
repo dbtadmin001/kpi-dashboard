@@ -74,6 +74,33 @@ def supply_chain(results):
         _check(results, "every pinned image still resolves in its registry",
                not unresolvable, ", ".join(unresolvable))
 
+        # And that every healthcheck can actually RUN in the image it targets.
+        # Two shipped that could not: iceberg-rest has no curl, and OPA has no
+        # shell at all. Both looked fine and both made `depends_on` wait forever,
+        # reporting the service as unhealthy rather than the check as wrong.
+        from delivery.compose import topology
+        spec = topology("nda-ci-validate", "/tmp/x",
+                        {"app": "a", "flink": "f", "catalog": "c"})
+        broken = []
+        for service, definition in spec["services"].items():
+            check = definition.get("healthcheck")
+            if not check:
+                continue
+            # Only base images can be checked here. app/flink/catalog do not
+            # exist until `release build` runs, and CI checks them after it does.
+            if definition["image"] not in images.values():
+                continue
+            tool = check["test"][-1].split()[0]
+            probe = subprocess.run(
+                ["docker", "run", "--rm", "--entrypoint", "sh", definition["image"],
+                 "-c", f"command -v {tool}"],
+                capture_output=True, text=True, timeout=180,
+                env={**os.environ, "MSYS_NO_PATHCONV": "1"})
+            if probe.returncode != 0:
+                broken.append(f"{service} needs {tool}")
+        _check(results, "every healthcheck can run in its own image",
+               not broken, "; ".join(broken))
+
     jars = json.loads((ROOT / "delivery/jars.lock.json").read_text(encoding="utf-8"))
     bad = [j["name"] for j in jars if not re.fullmatch(r"[0-9a-f]{64}", j.get("sha256", ""))]
     _check(results, "every JVM artifact has a SHA256", not bad, ", ".join(bad))
