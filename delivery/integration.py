@@ -143,7 +143,14 @@ def unit_tests():
     """The 59 assertions that pin the governance invariants - group-only grants,
     mask placement, fail-closed directory, impersonation denial. They were locked
     in requirements and copied into the image, and then never run."""
-    subprocess.run(["python", "-m", "pytest", "-q", "streaming/tests"], check=True)
+    # The full suite runs on the GitHub runner before this image is built. Two
+    # checks deliberately inspect the source checkout and invoke the runner's
+    # Docker CLI; neither facility belongs in the application image. Everything
+    # else runs here, proving the shipped artifact contains its Python modules,
+    # UI assets and test dependencies.
+    host_only = "test_secrets_are_not_committed or test_truststore_holds_a_certificate_java_will_actually_trust"
+    subprocess.run(["python", "-m", "pytest", "-q", "streaming/tests", "-k", f"not ({host_only})"],
+                   check=True)
 
 
 def semantic_layer():
@@ -195,6 +202,10 @@ def main():
     require_ci()
     unit_tests()
     until("authenticated Trino", lambda: query("marketplace_owner", "SELECT 1"))
+    # Feed the deterministic source before asserting the CDC path.  This is
+    # deliberately replayed below to prove the committed checkpoint is
+    # idempotent rather than merely proving a one-shot backfill.
+    ingest()
     until("source/silver/gold reconciliation", reconcile, timeout=600)
     from streaming.bootstrap import gold
     from marketplace.build import apply

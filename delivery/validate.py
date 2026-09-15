@@ -29,6 +29,7 @@ def _check(results, name, condition, detail=""):
 def modules(results):
     """Every module imports. Catches a syntax error or bad import in one second."""
     for module in ("streaming.contracts", "streaming.simulator", "streaming.api",
+                   "catalog.store",
                    "marketplace.products", "marketplace.build", "marketplace.identity",
                    "marketplace.auth", "marketplace.tls", "marketplace.trino_config",
                    "marketplace.audit", "marketplace.retention",
@@ -117,6 +118,14 @@ def build_inputs(results):
         parts = line.split()[1:-1]
         missing += [p for p in parts if not (ROOT / p).exists()]
     _check(results, "Dockerfile COPY sources all exist", not missing, ", ".join(missing))
+    # Integration tests run inside the built application image.  Importing a
+    # package from the checkout is not evidence that it was copied there.
+    packaged = {line.split()[1] for line in dockerfile.splitlines()
+                if line.startswith("COPY ") and "--from=" not in line}
+    required = {"streaming", "catalog", "marketplace", "delivery"}
+    absent = sorted(required - packaged)
+    _check(results, "application image includes every tested package", not absent,
+           ", ".join(absent))
 
 
 def deployment_guards(results):
@@ -150,6 +159,59 @@ def deployment_guards(results):
     _check(results, "audit receiver is part of the stack", "audit" in spec["services"])
     _check(results, "audit log is written to the mounted volume",
            spec["services"]["audit"]["environment"]["AUDIT_LOG_PATH"].startswith("/run/nda"))
+
+
+def credentials(results):
+    """A generated secrets.env must be one a stack can actually start with.
+
+    Both failures this catches presented as an unhealthy or restart-looping
+    container, minutes into CI, with nothing in the message about a password:
+    three independent values for the one `nda` Postgres user, and a Keycloak
+    admin username with no password because Keycloak 26 reads the variable under
+    a different name. Neither needs a container to detect.
+    """
+    import contextlib
+    import io
+    import tempfile
+    from delivery import secrets as secret_module
+
+    with tempfile.TemporaryDirectory() as directory:
+        with contextlib.redirect_stdout(io.StringIO()):   # it reports what it wrote
+            secret_module.init(directory)
+        text = (pathlib.Path(directory) / "secrets.env").read_text(encoding="utf-8")
+    values = dict(line.split("=", 1) for line in text.splitlines()
+                  if "=" in line and not line.startswith("#"))
+
+    _check(results, "every required secret is generated",
+           all(values.get(n) for n, auto, _ in secret_module.REQUIRED if auto),
+           ", ".join(n for n, auto, _ in secret_module.REQUIRED if auto and not values.get(n)))
+
+    wrong = [f"{n} != {src}" for n, src in secret_module.ALIAS.items()
+             if values.get(n) != values.get(src)]
+    _check(results, "secrets that are one credential share one value", not wrong,
+           ", ".join(wrong))
+
+    # Anything Kubernetes projects out of the secret has to be in it, or the pod
+    # starts with the variable simply unset - which is how the Keycloak one hid.
+    manifest = (ROOT / "delivery/kubernetes.py").read_text(encoding="utf-8")
+    projected = set(re.findall(r'_secret_env\(([^)]*)\)', manifest))
+    wanted = {name for group in projected for name in re.findall(r'"([A-Z0-9_]+)"', group)}
+    undeclared = sorted(wanted - {n for n, _, _ in secret_module.REQUIRED})
+    _check(results, "every secret the manifests project is one we generate",
+           not undeclared, ", ".join(undeclared))
+
+    # Provisioning code must not rely on a variable that cannot be present in
+    # secrets.env. This caught the original CI failure after the whole stack had
+    # started: bootstrap needed SQLSERVER_PASSWORD and DEBEZIUM_PASSWORD but the
+    # secret contract did not declare either.
+    bootstrap = (ROOT / "streaming/bootstrap.py").read_text(encoding="utf-8")
+    required_by_bootstrap = set(re.findall(r'os\.environ\["([A-Z0-9_]+)"\]', bootstrap))
+    undeclared = sorted(required_by_bootstrap - {n for n, _, _ in secret_module.REQUIRED})
+    _check(results, "bootstrap credentials are generated", not undeclared, ", ".join(undeclared))
+
+    _check(results, "MinIO client credentials match its initialized identity",
+           values.get("AWS_ACCESS_KEY_ID") == values.get("MINIO_ROOT_USER")
+           and values.get("AWS_SECRET_ACCESS_KEY") == values.get("MINIO_ROOT_PASSWORD"))
 
 
 def governance(results):
@@ -231,6 +293,7 @@ def main():
     supply_chain(results)
     build_inputs(results)
     deployment_guards(results)
+    credentials(results)
     kubernetes(results)
     governance(results)
 

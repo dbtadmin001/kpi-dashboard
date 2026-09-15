@@ -55,13 +55,16 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
     }
     secret_env = [f"{runtime}/secrets.env"]
 
-    # Verified against each image before being written here. Trino is absent on
-    # purpose: its image already declares its own HEALTHCHECK.
+    # Verified against each image before being written here.
     health = {
         "postgres": "pg_isready -U nda -d nda",
         "minio": "curl -fsS http://localhost:9000/minio/health/live",
         "keycloak": "exec 3<>/dev/tcp/localhost/8180",
         "connect": "curl -fsS http://localhost:8083/connectors",
+        # Declare the image's own readiness probe in the generated Compose
+        # document too, so services that consume Trino wait for it rather than
+        # merely for its process to be spawned.
+        "trino": "/usr/lib/trino/bin/health-check",
         # OPA is deliberately absent: its image is distroless and has no shell at
         # all, so no CMD-SHELL healthcheck can run in it. Its dependents fall back
         # to `service_started`, and readiness is proven by the first policy query.
@@ -128,6 +131,14 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
             environment={"FLINK_PROPERTIES": flink_properties}, volumes=["flink-state:/opt/flink/state"], mem_limit="1400m"),
         "taskmanager": service("flink", command="taskmanager", env_file=secret_env,
             environment={"FLINK_PROPERTIES": flink_properties}, volumes=["flink-state:/opt/flink/state"], mem_limit="5632m"),
+        # Submit the SQL StatementSet after the catalog and source have been
+        # provisioned.  A JobManager and TaskManager alone do no processing;
+        # without this service a green Compose boot still serves empty tables.
+        "flink-sql": service("flink", command=["bash", "-lc",
+            "mkdir -p /opt/flink/state/checkpoints /opt/flink/state/savepoints && "
+            "exec /opt/flink/bin/sql-client.sh -f /opt/nda/medallion.sql"],
+            env_file=secret_env, environment={"FLINK_PROPERTIES": flink_properties},
+            volumes=["flink-state:/opt/flink/state"], mem_limit="1400m", restart="no"),
         "keycloak": service("keycloak", name="keycloak", env_file=secret_env,
             command=["start", "--http-enabled=true", "--http-port=8180",
                      "--hostname=" + (keycloak_url or "http://nda-keycloak:8180"),
@@ -174,11 +185,12 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
         "connect": ["kafka", "sqlserver"],
         "jobmanager": ["kafka", "iceberg-rest"],
         "taskmanager": ["jobmanager"],
+        "flink-sql": ["jobmanager", "taskmanager", "iceberg-rest", "kafka"],
         "trino": ["iceberg-rest", "keycloak"],
         "audit": ["trino"],
         "api": ["trino", "opa"],
         "identity": ["keycloak", "trino"],
-        "tools": ["trino", "keycloak", "connect", "jobmanager", "audit"],
+        "tools": ["trino", "keycloak", "connect", "jobmanager", "flink-sql", "audit"],
     }
     for name, upstreams in ordering.items():
         s[name]["depends_on"] = {

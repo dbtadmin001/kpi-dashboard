@@ -114,10 +114,13 @@ python -m delivery.promote promote <artifact> --to production
 
 ## Known state, honestly
 
-- **CI's integration job fails.** `validate` passes and images build on the
-  runner; the 14-service stack in `delivery/release.py verify` has never
-  completed successfully on a GitHub runner. That is the next thing to fix, and
-  the logs on the failed run name the step.
+- **The integration gate is a real disposable stack.** It starts isolated
+  PostgreSQL, SQL Server, Kafka/Connect, Flink, Iceberg, MinIO, Keycloak,
+  Trino, OPA and audit services. Bootstrap renders OIDC/TLS/policy material
+  before the serving plane starts; `flink-sql` submits the StatementSet; then
+  the gate writes deterministic source data and checks CDC, RBAC, browser SSO,
+  dbt metrics and audit lineage. The first GitHub run after this change is the
+  acceptance record for the runner itself; it must pass before deployment.
 - **`__write_probe` is still the repository's default branch.** Change it to
   `master` in Settings → General, then `git push origin --delete __write_probe`.
   It exists because a write test created the first branch on an empty repo.
