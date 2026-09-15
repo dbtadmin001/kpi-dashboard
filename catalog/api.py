@@ -21,6 +21,8 @@ from fastapi.staticfiles import StaticFiles
 from . import store
 from .collectors import REGISTRY, all_collectors, health as collector_health
 from .model import EDGE_TYPES
+from .taxonomy import (EDGE_LABELS, GROUP_ABOUT, GROUP_LABEL, GROUPS,
+                       confidence_label, label_for, source_for)
 from .resolver import relink, run_collector
 
 STATIC = pathlib.Path(__file__).parent / "static"
@@ -69,6 +71,14 @@ def stats():
     data = store.stats(_conn)
     data["edge_types"] = EDGE_TYPES
     data["auth"] = "required" if REQUIRE_AUTH else "open"
+    # The UI renders words, not identifiers. Ship the vocabulary with the data
+    # so a new resource kind never shows up as a raw provider string.
+    data["vocabulary"] = {
+        "groups": [{"key": k, "label": l, "about": a} for k, l, a, _ in GROUPS],
+        "edges": EDGE_LABELS,
+        "sources": {p["value"]: source_for(p["value"]) for p in data["by_provider"]},
+        "kinds": {k["value"]: label_for(k["value"]) for k in data["by_kind"]},
+    }
     return data
 
 
@@ -80,9 +90,9 @@ def health():
 @app.get("/v1/resources")
 def resources(q: str = None, kind: str = None, provider: str = None, scope: str = None,
               environment: str = None, owner: str = None, status: str = None,
-              limit: int = Query(200, le=1000), offset: int = 0):
+              group: str = None, limit: int = Query(200, le=1000), offset: int = 0):
     return store.search(_conn, q, kind, provider, scope, environment, owner,
-                        status, limit, offset)
+                        status, group, limit, offset)
 
 
 @app.get("/v1/resources/{urn:path}")

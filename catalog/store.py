@@ -17,18 +17,21 @@ import sqlite3
 import time
 from typing import Any, Dict, Iterable, List, Optional
 
+from .taxonomy import group_for
+
 DEFAULT_PATH = pathlib.Path(os.environ.get(
     "CATALOG_DB", pathlib.Path(__file__).resolve().parents[1] / "catalog" / "catalog.db"))
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS resource (
     urn TEXT PRIMARY KEY, provider TEXT, kind TEXT, name TEXT, scope TEXT,
-    owner TEXT, environment TEXT, status TEXT, tags TEXT,
+    rgroup TEXT, owner TEXT, environment TEXT, status TEXT, tags TEXT,
     attributes TEXT, observed_at REAL, run_id INTEGER, stale INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS resource_kind ON resource(kind);
 CREATE INDEX IF NOT EXISTS resource_provider ON resource(provider);
 CREATE INDEX IF NOT EXISTS resource_scope ON resource(scope);
+CREATE INDEX IF NOT EXISTS resource_group ON resource(rgroup);
 
 -- The join, kept inspectable. Every row says which rule produced it.
 CREATE TABLE IF NOT EXISTS alias (
@@ -103,18 +106,19 @@ def last_runs(conn) -> List[dict]:
 # --------------------------------------------------------------------------
 def upsert_resource(conn, entity, urn: str, run_id: int):
     conn.execute("""
-        INSERT INTO resource (urn, provider, kind, name, scope, owner, environment,
+        INSERT INTO resource (urn, provider, kind, name, scope, rgroup, owner, environment,
                               status, tags, attributes, observed_at, run_id, stale)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0)
         ON CONFLICT(urn) DO UPDATE SET
             provider=excluded.provider, kind=excluded.kind, name=excluded.name,
-            scope=excluded.scope,
+            scope=excluded.scope, rgroup=excluded.rgroup,
             owner=COALESCE(excluded.owner, resource.owner),
             environment=COALESCE(excluded.environment, resource.environment),
             status=excluded.status, tags=excluded.tags,
             attributes=excluded.attributes, observed_at=excluded.observed_at,
             run_id=excluded.run_id, stale=0
     """, (urn, entity.provider, entity.kind, entity.name, entity.scope,
+          group_for(entity.provider, entity.kind),
           entity.owner, entity.environment, entity.status,
           json.dumps(entity.tags), json.dumps(entity.attributes, default=str),
           time.time(), run_id))
@@ -180,13 +184,14 @@ def get_resource(conn, urn: str) -> Optional[dict]:
 
 
 def search(conn, q=None, kind=None, provider=None, scope=None, environment=None,
-           owner=None, status=None, limit=200, offset=0):
+           owner=None, status=None, group=None, limit=200, offset=0):
     where, params = [], []
     if q:
         where.append("(name LIKE ? OR urn LIKE ? OR scope LIKE ?)")
         params += [f"%{q}%"] * 3
     for column, value in (("kind", kind), ("provider", provider), ("scope", scope),
-                          ("environment", environment), ("owner", owner), ("status", status)):
+                          ("environment", environment), ("owner", owner),
+                          ("status", status), ("rgroup", group)):
         if value:
             where.append(f"{column}=?")
             params.append(value)
@@ -202,7 +207,7 @@ def search(conn, q=None, kind=None, provider=None, scope=None, environment=None,
 def facets(conn, clause="", params=()) -> Dict[str, List[dict]]:
     """Counts alongside the results, so the UI never round-trips twice."""
     out = {}
-    for column in ("provider", "kind", "scope", "environment", "owner", "status"):
+    for column in ("rgroup", "provider", "kind", "scope", "environment", "owner", "status"):
         rows = conn.execute(
             f"SELECT {column} AS value, COUNT(*) n FROM resource{clause} "
             f"GROUP BY {column} ORDER BY n DESC", params)
@@ -273,6 +278,8 @@ def stats(conn) -> dict:
             "SELECT provider AS value, COUNT(*) n FROM resource GROUP BY provider ORDER BY n DESC")],
         "by_kind": [dict(r) for r in conn.execute(
             "SELECT kind AS value, COUNT(*) n FROM resource GROUP BY kind ORDER BY n DESC")],
+        "by_group": [dict(r) for r in conn.execute(
+            "SELECT rgroup AS value, COUNT(*) n FROM resource GROUP BY rgroup ORDER BY n DESC")],
         "collectors": last_runs(conn),
     }
 
