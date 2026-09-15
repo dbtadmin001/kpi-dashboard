@@ -139,15 +139,66 @@ def setup(host, keycloak_url, repo=None):
     return 0
 
 
+# The checks a pull request into production must pass. These are the `name:` of
+# each CI job, which is what GitHub matches on - not the job id.
+REQUIRED_CHECKS = ["Coherence and unit tests", "Real-engine integration"]
+
+
+def protect(repo=None, reviewers=1):
+    """Make production a branch that only reviewed, tested code reaches.
+
+    master stays open: it is where work integrates and every push is tested.
+    production is the one that publishes images and is the only thing deploy
+    will accept, so it gets the rules.
+    """
+    _require_auth()
+    repo = repository(repo)
+    rules = {
+        "required_status_checks": {"strict": True, "contexts": REQUIRED_CHECKS},
+        # No exceptions for administrators. A rule the owner can walk around is
+        # a suggestion, and on a small team the owner is the one under pressure.
+        "enforce_admins": True,
+        "required_pull_request_reviews": {
+            "required_approving_review_count": reviewers,
+            # A review of an older revision does not approve what is merged.
+            "dismiss_stale_reviews": True,
+            "require_last_push_approver": True,
+        },
+        "restrictions": None,
+        "allow_force_pushes": False,
+        "allow_deletions": False,
+        "required_linear_history": True,
+        "required_conversation_resolution": True,
+    }
+    _gh("api", "--method", "PUT", f"/repos/{repo}/branches/production/protection",
+        "--input", "-", input=json.dumps(rules))
+    print(f"  protected production on {repo}")
+    for name in REQUIRED_CHECKS:
+        print(f"    required check: {name}")
+    print(f"    approving reviews required: {reviewers}")
+    print("    force pushes: denied | deletion: denied | admins: not exempt")
+    print("    stale reviews dismissed on new commits")
+    if reviewers:
+        print(os.linesep + "  NOTE: with one approval required you cannot approve your own pull")
+        print("  request. As a sole maintainer either add a second account as a")
+        print("  reviewer, or re-run with --reviewers 0 to keep the pull request and")
+        print("  the status checks while dropping the human approval.")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description="Configure the repo for deployment")
-    parser.add_argument("action", choices=["check", "setup"])
+    parser.add_argument("action", choices=["check", "setup", "protect"])
+    parser.add_argument("--reviewers", type=int, default=1,
+                        help="Approving reviews required on production (default 1)")
     parser.add_argument("--host", help="The production VM's address")
     parser.add_argument("--keycloak-url", help="Public HTTPS URL of Keycloak")
     parser.add_argument("--repo", default=None, help="owner/name (default: from origin)")
     args = parser.parse_args()
     if args.action == "check":
         return check(args.repo)
+    if args.action == "protect":
+        return protect(args.repo, args.reviewers)
     if not args.host or not args.keycloak_url:
         raise SystemExit("setup needs --host and --keycloak-url")
     return setup(args.host, args.keycloak_url, args.repo)

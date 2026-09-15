@@ -7,6 +7,74 @@ become the **cluster**. Nothing here changes the dev setup.
 
 ---
 
+## Branches
+
+Two branches with two different meanings, and the difference is what may reach
+the VM.
+
+| Branch | What it means | On push |
+|---|---|---|
+| `master` | Integration. Where work lands and is tested | validate + integration. **Nothing is published** |
+| `production` | What may be deployed | validate + integration + **publish** |
+
+```
+  work ──▶ master ──[pull request: checks pass + you approve]──▶ production
+                                                                    │
+                                                                    ▼
+                                                     publish digests to ghcr.io
+                                                                    │
+                                                      Actions ▸ Deploy (manual)
+                                                                    │
+                                                                    ▼
+                                                              production VM
+```
+
+Three independent gates stand between a commit and the VM, and any one of them
+missing stops it:
+
+1. **The commit is an ancestor of `production`** - so it went through a reviewed
+   pull request. The deploy workflow checks this with `git merge-base`, not by
+   trusting the branch name it was given.
+2. **CI published digests for it** - which only happens from `production`, and
+   only after the real-engine gate passed. Deploy never builds, and refuses
+   anything that is not digest-pinned.
+3. **You typed `deploy`** - the workflow is dry-run by default.
+
+Publishing is deliberately confined to `production`. It is what makes a
+deployment *possible* at all, so work on `master` cannot become deployable by
+accident, however green its checks are.
+
+### Protecting production
+
+```bash
+gh auth login && gh auth setup-git
+python -m delivery.github protect            # 1 approving review required
+python -m delivery.github protect --reviewers 0   # checks only, no human approval
+```
+
+That sets: both CI checks required and up to date with the base, force pushes
+and deletion denied, linear history, conversations resolved, stale reviews
+dismissed when new commits arrive - and **administrators are not exempt**. A
+rule the owner can walk around is a suggestion, and the owner is the one who
+will be under pressure to walk around it.
+
+**If you are the only maintainer**, one required approval means you cannot merge
+your own pull request - GitHub does not let you approve your own. Either add a
+second account as a reviewer, or use `--reviewers 0`, which keeps the pull
+request and the status checks and drops only the human approval. That is a real
+trade-off, not a formality: with `0` the tests are the only gate.
+
+### Day to day
+
+```bash
+git switch master && git push                     # work integrates here; CI runs
+gh pr create --base production --head master              --title "Release: <what changed>"    # opens the gate
+# checks run, you review, you approve, you merge
+# then: Actions ▸ Deploy ▸ Run workflow, sha = the production tip
+```
+
+---
+
 ## Two deployment targets, and which one is current
 
 | Target | State | Use it for |

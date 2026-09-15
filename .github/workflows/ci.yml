@@ -1,11 +1,16 @@
 name: CI
 
-# Everything in delivery/ existed before this file did, and nothing triggered it.
-# These are the gates, in ascending order of cost: a few seconds of coherence
-# checks, then the unit suite, then a real stack with real engines.
+# Two branches, two meanings.
+#
+#   master      integration. Every push is tested, nothing is published.
+#   production  what may be deployed. Reached only by a reviewed pull request
+#               whose checks passed, and the only branch that publishes images.
+#
+# The gates run in ascending order of cost: a few seconds of coherence checks,
+# then the unit suite, then a real stack with real engines.
 on:
   push:
-    branches: [master, main]
+    branches: [master, production]
   pull_request:
   workflow_dispatch:
 
@@ -107,9 +112,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: integration
-    # Only from the default branch, and only once the real stack has passed.
-    # A digest cannot exist without a push, and nothing may deploy without one.
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    # ONLY from production, and only once the real stack has passed.
+    #
+    # Publishing is what makes a deployment possible: a digest cannot exist
+    # without a push, and deploy.yml refuses anything that is not digest-pinned.
+    # Confining it to production means the reviewed merge is the gate, and work
+    # on master can never become deployable by accident.
+    if: github.ref == 'refs/heads/production' && github.event_name == 'push'
     permissions:
       contents: read
       packages: write
