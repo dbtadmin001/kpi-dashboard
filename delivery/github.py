@@ -162,12 +162,27 @@ def protect(repo=None, reviewers=1):
             "required_approving_review_count": reviewers,
             # A review of an older revision does not approve what is merged.
             "dismiss_stale_reviews": True,
-            "require_last_push_approver": True,
+            "require_last_push_approval": True,
         },
         "restrictions": None,
         "allow_force_pushes": False,
         "allow_deletions": False,
-        "required_linear_history": True,
+        # NOT linear history, deliberately.
+        #
+        # Linear history forbids merge commits, so GitHub hides "Create a merge
+        # commit" and leaves only squash and rebase. Both of those rewrite the
+        # commits as they land, giving production copies with new identities
+        # that git cannot match to the originals on master. The branches then
+        # diverge the instant a release lands, and the NEXT pull request opens
+        # conflicted - which is not merely inconvenient: GitHub builds a merge
+        # ref to run `pull_request` workflows against, cannot build one for a
+        # conflicted PR, and so runs no CI at all. A release branch that
+        # silently stops testing is a worse outcome than a merge commit in the
+        # log. That is exactly what happened to PR #2.
+        #
+        # A promotion branch wants ordinary merges: production keeps master's
+        # commits, with their identities, and the two never drift.
+        "required_linear_history": False,
         "required_conversation_resolution": True,
     }
     _gh("api", "--method", "PUT", f"/repos/{repo}/branches/production/protection",
