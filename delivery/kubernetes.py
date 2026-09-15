@@ -52,12 +52,20 @@ PIPELINE = "nda-pipeline"
 GENERATED = "/etc/marketplace"
 
 
+# Placeholders for the images CI builds. images.built.json is an artefact of the
+# publish job, so it does not exist in a fresh checkout - and the manifests must
+# still render there, or `delivery.validate` cannot run before anything is built.
+# These references are deliberately unusable: a cluster asked to pull them fails
+# loudly rather than quietly running something stale.
+UNBUILT = {stage: f"nda-{stage}:UNBUILT" for stage in ("app", "flink", "catalog")}
+
+
 def images(built=None):
     base = json.loads((ROOT / "delivery/images.lock.json").read_text(encoding="utf-8"))
     path = ROOT / "delivery/images.built.json"
     if built is None and path.exists():
         built = json.loads(path.read_text(encoding="utf-8"))
-    return base | (built or {})
+    return UNBUILT | base | (built or {})
 
 
 # --------------------------------------------------------------------------
@@ -578,6 +586,10 @@ def render(nodes, storage_nodes, keycloak_url, out=None, built=None):
         for d in documents:
             counts[d["kind"]] = counts.get(d["kind"], 0) + 1
         print(f"Wrote {len(documents)} resources to {out}")
+        unbuilt = sorted(k for k, v in images().items() if v.endswith(":UNBUILT"))
+        if unbuilt:
+            print(f"  WARNING: {', '.join(unbuilt)} are placeholders - run"
+                  f" `python -m delivery.release build` before applying these.")
         for kind, n in sorted(counts.items()):
             print(f"  {kind:22} {n}")
     else:

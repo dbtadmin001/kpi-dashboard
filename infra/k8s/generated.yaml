@@ -458,7 +458,7 @@ spec:
     spec:
       containers:
       - name: catalog
-        image: ghcr.io/o/nda-catalog@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        image: nda-catalog:UNBUILT
         ports:
         - containerPort: 8181
         env:
@@ -812,7 +812,7 @@ spec:
             port: 8443
             scheme: HTTPS
       - name: identity
-        image: ghcr.io/o/nda-app@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        image: nda-app:UNBUILT
         command:
         - python
         - -m
@@ -865,7 +865,7 @@ spec:
       terminationGracePeriodSeconds: 60
       initContainers:
       - name: render-config
-        image: ghcr.io/o/nda-app@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        image: nda-app:UNBUILT
         command:
         - sh
         - -c
@@ -1003,7 +1003,7 @@ spec:
       terminationGracePeriodSeconds: 60
       initContainers:
       - name: render-catalog
-        image: ghcr.io/o/nda-app@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        image: nda-app:UNBUILT
         command:
         - sh
         - -c
@@ -1112,7 +1112,7 @@ spec:
     spec:
       containers:
       - name: jobmanager
-        image: ghcr.io/o/nda-flink@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        image: flink:1.20.1-scala_2.12-java17@sha256:d51a693da76581f2483d3f83d5997d3226b076a9f990a7f7d1eed144434b8e1e
         args:
         - jobmanager
         ports:
@@ -1230,7 +1230,7 @@ spec:
     spec:
       containers:
       - name: taskmanager
-        image: ghcr.io/o/nda-flink@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        image: flink:1.20.1-scala_2.12-java17@sha256:d51a693da76581f2483d3f83d5997d3226b076a9f990a7f7d1eed144434b8e1e
         args:
         - taskmanager
         env:
@@ -1394,7 +1394,7 @@ spec:
     spec:
       containers:
       - name: api
-        image: ghcr.io/o/nda-app@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        image: nda-app:UNBUILT
         command:
         - python
         - -m
@@ -1511,7 +1511,7 @@ spec:
     spec:
       containers:
       - name: audit
-        image: ghcr.io/o/nda-app@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        image: nda-app:UNBUILT
         command:
         - python
         - -m
