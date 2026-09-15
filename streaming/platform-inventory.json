@@ -1,0 +1,94 @@
+{
+  "captured_date": "2026-09-13",
+  "docker_memory_bytes": 16636903424,
+  "services": [
+    {
+      "name": "/minio",
+      "container_id": "a32d37d7227f2cb46c88ede7a59329f71f5ceb8160f990ad3170f36e6b02bdd1",
+      "image_id": "sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e",
+      "image_tag": "minio/minio",
+      "state": "running",
+      "oom_killed": false,
+      "networks": [
+        "atc-poc_pipeline_net"
+      ]
+    },
+    {
+      "name": "/iceberg-rest",
+      "container_id": "fb689e46180f1925c865a288cbc5f08aac7da2c762aa588ca7962281e79d694f",
+      "image_id": "sha256:e36c2c0c6b059a2df4f51fc454abe496c2c9bbceef7a325d08c6503f896c1a41",
+      "image_tag": "atc-poc-iceberg-rest:latest",
+      "state": "running",
+      "oom_killed": false,
+      "networks": [
+        "atc-poc_pipeline_net"
+      ]
+    },
+    {
+      "name": "/airflow-scheduler",
+      "container_id": "b8323b39a7ac07b7516d12d89560100e82bea5e8152608fcc5baa2203a028518",
+      "image_id": "sha256:53184f04052ba9af9d0e3e53ee51ea7c5783eb951db1fc5bb1a319847b1c1c7b",
+      "image_tag": "atc-poc-airflow:latest",
+      "state": "running",
+      "oom_killed": false,
+      "networks": [
+        "atc-poc_pipeline_net"
+      ]
+    },
+    {
+      "name": "/airflow-webserver",
+      "container_id": "b46d045e8c3297420294cd2c52417805ac61251206227ef565b61bcddb7377eb",
+      "image_id": "sha256:53184f04052ba9af9d0e3e53ee51ea7c5783eb951db1fc5bb1a319847b1c1c7b",
+      "image_tag": "atc-poc-airflow:latest",
+      "state": "running",
+      "oom_killed": false,
+      "networks": [
+        "atc-poc_pipeline_net"
+      ]
+    },
+    {
+      "name": "/openmetadata-server",
+      "container_id": "b6aaa5e246db347b8d3545fe36c70d54073846fb4f32857739392a2b0fa2c79a",
+      "image_id": "sha256:ce18173853b70bde06142a63327a0e4c9b849a696ddc6cd8c26e836cd26bfcc8",
+      "image_tag": "docker.getcollate.io/openmetadata/server:1.12.8",
+      "state": "running",
+      "oom_killed": false,
+      "networks": [
+        "atc-poc_pipeline_net"
+      ]
+    },
+    {
+      "name": "/trino",
+      "container_id": "2399ee35c8d9b6e26e4a21a054bed673aa80231a74ae6fa1c28db58e6dc9f4c6",
+      "image_id": "sha256:cb08dfd4bd58fb4bec5df09457347c6f353f82d91495305e7648b2bf1307de45",
+      "image_tag": "trinodb/trino:455",
+      "state": "exited",
+      "oom_killed": true,
+      "networks": [
+        "atc-poc_pipeline_net"
+      ]
+    },
+    {
+      "name": "/spark-master",
+      "container_id": "3eeea9b25a577a4beca0cc909a4921f0a3d51cfdd42949405596a2d79c8ada7b",
+      "image_id": "sha256:02e310c110814be401044776424d4df6297344d2ba1e753b70c9b7a2ad51feb1",
+      "image_tag": "atc-poc-spark-master",
+      "state": "running",
+      "oom_killed": false,
+      "networks": [
+        "atc-poc_pipeline_net"
+      ]
+    },
+    {
+      "name": "/spark-worker",
+      "container_id": "39a08090fe6b7e2ee1a9b147bc436daf49456ef6148bbb8f723c9f0182e7949e",
+      "image_id": "sha256:4c6ae494ff0b922dceb879306a0500252501619cb06558955391539f4b1d19c8",
+      "image_tag": "atc-poc-spark-worker",
+      "state": "running",
+      "oom_killed": false,
+      "networks": [
+        "atc-poc_pipeline_net"
+      ]
+    }
+  ]
+}

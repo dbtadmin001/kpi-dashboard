@@ -1,0 +1,7 @@
+fastapi==0.115.12
+uvicorn==0.34.2
+trino==0.336.0
+pymssql==2.3.4
+requests==2.32.4
+pytest==8.3.5
+httpx==0.28.1

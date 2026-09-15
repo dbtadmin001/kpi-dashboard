@@ -1,0 +1,2035 @@
+{
+  "sections": [
+    "quarterlyData",
+    "processStepData",
+    "kpiCounts",
+    "quarterlyVolumes",
+    "inspectionVolumes",
+    "bottleneckData",
+    "processStepCounts"
+  ],
+  "indicator_count": 43,
+  "issues": [
+    {
+      "kind": "negative_measure",
+      "path": "root.quarterlyVolumes.MA[5].reliance_used_count",
+      "value": -2
+    },
+    {
+      "kind": "negative_measure",
+      "path": "root.quarterlyVolumes.CT[0].queries_sent",
+      "value": -1
+    },
+    {
+      "kind": "negative_measure",
+      "path": "root.bottleneckData.MA.Technical Dossier Review[0].closing_backlog",
+      "value": -2.9
+    },
+    {
+      "kind": "negative_measure",
+      "path": "root.bottleneckData.MA.Queries to Applicant[0].closing_backlog",
+      "value": -0.42
+    },
+    {
+      "kind": "negative_measure",
+      "path": "root.bottleneckData.CT.GCP Inspection[1].closing_backlog",
+      "value": -0.1
+    },
+    {
+      "kind": "negative_measure",
+      "path": "root.bottleneckData.GMP.Report Publication[0].closing_backlog",
+      "value": -0.57
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_new_apps_evaluated_on_time",
+      "quarter": "Q1 2023",
+      "numerator": 175,
+      "denominator": 212,
+      "published": 70.22788332731886
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_new_apps_evaluated_on_time",
+      "quarter": "Q2 2023",
+      "numerator": 100,
+      "denominator": 240,
+      "published": 66.23522221816437
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_new_apps_evaluated_on_time",
+      "quarter": "Q3 2023",
+      "numerator": 253,
+      "denominator": 500,
+      "published": 67.52780714424762
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_new_apps_evaluated_on_time",
+      "quarter": "Q4 2023",
+      "numerator": 228,
+      "denominator": 500,
+      "published": 71.70698555512378
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_new_apps_evaluated_on_time",
+      "quarter": "Q1 2024",
+      "numerator": 208,
+      "denominator": 300,
+      "published": 79.26728316861896
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_new_apps_evaluated_on_time",
+      "quarter": "Q2 2024",
+      "numerator": 560,
+      "denominator": 600,
+      "published": 87.05719403365418
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_new_apps_evaluated_on_time",
+      "quarter": "Q3 2024",
+      "numerator": 200,
+      "denominator": 260,
+      "published": 87.34449991154456
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_new_apps_evaluated_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 405,
+      "denominator": 595,
+      "published": 90.26324735786659
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_new_apps_evaluated_on_time",
+      "quarter": "Q1 2025",
+      "numerator": 400,
+      "denominator": 526,
+      "published": 91.71879656924824
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_new_apps_evaluated_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 560,
+      "denominator": 800,
+      "published": 95.41118020730624
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_renewal_apps_evaluated_on_time",
+      "quarter": "Q1 2023",
+      "numerator": 116,
+      "denominator": 148,
+      "published": 70.30047426722831
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_renewal_apps_evaluated_on_time",
+      "quarter": "Q2 2023",
+      "numerator": 126,
+      "denominator": 141,
+      "published": 72.09588547976927
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_renewal_apps_evaluated_on_time",
+      "quarter": "Q3 2023",
+      "numerator": 109,
+      "denominator": 136,
+      "published": 72.13882355890651
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "MA",
+      "kpi": "pct_renewal_apps_evaluated_on_time",
+      "quarter": "Q4 2023",
+      "numerator": 127,
+      "denominator": 126
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_renewal_apps_evaluated_on_time",
+      "quarter": "Q4 2023",
+      "numerator": 127,
+      "denominator": 126,
+      "published": 78.14248291994637
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_renewal_apps_evaluated_on_time",
+      "quarter": "Q1 2024",
+      "numerator": 78,
+      "denominator": 88,
+      "published": 78.18160263931576
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "MA",
+      "kpi": "pct_renewal_apps_evaluated_on_time",
+      "quarter": "Q2 2024",
+      "numerator": 92,
+      "denominator": 84
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_renewal_apps_evaluated_on_time",
+      "quarter": "Q2 2024",
+      "numerator": 92,
+      "denominator": 84,
+      "published": 86.07265130827089
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "MA",
+      "kpi": "pct_renewal_apps_evaluated_on_time",
+      "quarter": "Q3 2024",
+      "numerator": 76,
+      "denominator": 74
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_renewal_apps_evaluated_on_time",
+      "quarter": "Q3 2024",
+      "numerator": 76,
+      "denominator": 74,
+      "published": 88.59566157440292
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "MA",
+      "kpi": "pct_renewal_apps_evaluated_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 70,
+      "denominator": 69
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_renewal_apps_evaluated_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 70,
+      "denominator": 69,
+      "published": 92.02067289360939
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "MA",
+      "kpi": "pct_renewal_apps_evaluated_on_time",
+      "quarter": "Q1 2025",
+      "numerator": 43,
+      "denominator": 39
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_renewal_apps_evaluated_on_time",
+      "quarter": "Q1 2025",
+      "numerator": 43,
+      "denominator": 39,
+      "published": 94.60400795663742
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "MA",
+      "kpi": "pct_renewal_apps_evaluated_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 42,
+      "denominator": 25
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_renewal_apps_evaluated_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 42,
+      "denominator": 25,
+      "published": 91.93705137913832
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_variation_apps_evaluated_on_time",
+      "quarter": "Q1 2023",
+      "numerator": 98,
+      "denominator": 114,
+      "published": 62.04613906877958
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_variation_apps_evaluated_on_time",
+      "quarter": "Q2 2023",
+      "numerator": 100,
+      "denominator": 123,
+      "published": 69.29981807398943
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_variation_apps_evaluated_on_time",
+      "quarter": "Q3 2023",
+      "numerator": 97,
+      "denominator": 103,
+      "published": 64.33426944149751
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_variation_apps_evaluated_on_time",
+      "quarter": "Q4 2023",
+      "numerator": 93,
+      "denominator": 110,
+      "published": 74.2179773524382
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_variation_apps_evaluated_on_time",
+      "quarter": "Q1 2024",
+      "numerator": 68,
+      "denominator": 72,
+      "published": 75.02055133922562
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_variation_apps_evaluated_on_time",
+      "quarter": "Q2 2024",
+      "numerator": 60,
+      "denominator": 76,
+      "published": 80.66876399774274
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "MA",
+      "kpi": "pct_variation_apps_evaluated_on_time",
+      "quarter": "Q3 2024",
+      "numerator": 58,
+      "denominator": 56
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_variation_apps_evaluated_on_time",
+      "quarter": "Q3 2024",
+      "numerator": 58,
+      "denominator": 56,
+      "published": 82.03174368534053
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_variation_apps_evaluated_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 134,
+      "denominator": 155,
+      "published": 83.67757493304858
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_variation_apps_evaluated_on_time",
+      "quarter": "Q1 2025",
+      "numerator": 30,
+      "denominator": 30,
+      "published": 92.18105206456086
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "MA",
+      "kpi": "pct_variation_apps_evaluated_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 25,
+      "denominator": 21
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_variation_apps_evaluated_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 25,
+      "denominator": 21,
+      "published": 84.01069011921749
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_fir_responses_on_time",
+      "quarter": "Q1 2023",
+      "numerator": 176,
+      "denominator": 259,
+      "published": 60.159995912266055
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_fir_responses_on_time",
+      "quarter": "Q2 2023",
+      "numerator": 194,
+      "denominator": 260,
+      "published": 58.049284675501895
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_fir_responses_on_time",
+      "quarter": "Q3 2023",
+      "numerator": 177,
+      "denominator": 238,
+      "published": 65.20748416895665
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_fir_responses_on_time",
+      "quarter": "Q4 2023",
+      "numerator": 170,
+      "denominator": 217,
+      "published": 67.72163097714004
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_fir_responses_on_time",
+      "quarter": "Q1 2024",
+      "numerator": 128,
+      "denominator": 162,
+      "published": 70.01769899910819
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_fir_responses_on_time",
+      "quarter": "Q2 2024",
+      "numerator": 108,
+      "denominator": 159,
+      "published": 71.74084102961064
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_fir_responses_on_time",
+      "quarter": "Q3 2024",
+      "numerator": 117,
+      "denominator": 126,
+      "published": 72.9757126290717
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "MA",
+      "kpi": "pct_fir_responses_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 115,
+      "denominator": 107
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_fir_responses_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 115,
+      "denominator": 107,
+      "published": 74.09937051790911
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_fir_responses_on_time",
+      "quarter": "Q1 2025",
+      "numerator": 61,
+      "denominator": 64,
+      "published": 73.0523714776624
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "MA",
+      "kpi": "pct_fir_responses_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 54,
+      "denominator": 41
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_fir_responses_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 54,
+      "denominator": 41,
+      "published": 79.38181611512681
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_query_responses_evaluated_on_time",
+      "quarter": "Q1 2023",
+      "numerator": 180,
+      "denominator": 216,
+      "published": 83.12488395043998
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_query_responses_evaluated_on_time",
+      "quarter": "Q2 2023",
+      "numerator": 193,
+      "denominator": 218,
+      "published": 81.63589938380974
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_query_responses_evaluated_on_time",
+      "quarter": "Q3 2023",
+      "numerator": 163,
+      "denominator": 190,
+      "published": 84.80066317723805
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_query_responses_evaluated_on_time",
+      "quarter": "Q4 2023",
+      "numerator": 188,
+      "denominator": 197,
+      "published": 86.56637259667797
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_query_responses_evaluated_on_time",
+      "quarter": "Q1 2024",
+      "numerator": 114,
+      "denominator": 129,
+      "published": 87.0454332111341
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_query_responses_evaluated_on_time",
+      "quarter": "Q2 2024",
+      "numerator": 115,
+      "denominator": 130,
+      "published": 87.59018826081606
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_query_responses_evaluated_on_time",
+      "quarter": "Q3 2024",
+      "numerator": 98,
+      "denominator": 110,
+      "published": 89.21045821056636
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "MA",
+      "kpi": "pct_query_responses_evaluated_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 98,
+      "denominator": 90
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_query_responses_evaluated_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 98,
+      "denominator": 90,
+      "published": 88.64055463081702
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "MA",
+      "kpi": "pct_query_responses_evaluated_on_time",
+      "quarter": "Q1 2025",
+      "numerator": 54,
+      "denominator": 51
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_query_responses_evaluated_on_time",
+      "quarter": "Q1 2025",
+      "numerator": 54,
+      "denominator": 51,
+      "published": 87.81777552108362
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "MA",
+      "kpi": "pct_query_responses_evaluated_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 45,
+      "denominator": 44
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_query_responses_evaluated_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 45,
+      "denominator": 44,
+      "published": 88.3243633665463
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_granted_within_90_days",
+      "quarter": "Q1 2023",
+      "numerator": 69,
+      "denominator": 108,
+      "published": 41.44483309483913
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_granted_within_90_days",
+      "quarter": "Q2 2023",
+      "numerator": 75,
+      "denominator": 114,
+      "published": 51.28691052638332
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_granted_within_90_days",
+      "quarter": "Q3 2023",
+      "numerator": 60,
+      "denominator": 96,
+      "published": 52.42346434093651
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_granted_within_90_days",
+      "quarter": "Q4 2023",
+      "numerator": 70,
+      "denominator": 102,
+      "published": 54.25797820155296
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_granted_within_90_days",
+      "quarter": "Q1 2024",
+      "numerator": 44,
+      "denominator": 74,
+      "published": 58.11373199014319
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_granted_within_90_days",
+      "quarter": "Q2 2024",
+      "numerator": 48,
+      "denominator": 69,
+      "published": 61.34160446043184
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_granted_within_90_days",
+      "quarter": "Q3 2024",
+      "numerator": 39,
+      "denominator": 56,
+      "published": 63.531701044101865
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_granted_within_90_days",
+      "quarter": "Q4 2024",
+      "numerator": 41,
+      "denominator": 46,
+      "published": 67.0956481492487
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "MA",
+      "kpi": "pct_granted_within_90_days",
+      "quarter": "Q1 2025",
+      "numerator": 32,
+      "denominator": 29
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_granted_within_90_days",
+      "quarter": "Q1 2025",
+      "numerator": 32,
+      "denominator": 29,
+      "published": 61.5446817152802
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "MA",
+      "kpi": "pct_granted_within_90_days",
+      "quarter": "Q2 2025",
+      "numerator": 30,
+      "denominator": 25
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "MA",
+      "kpi": "pct_granted_within_90_days",
+      "quarter": "Q2 2025",
+      "numerator": 30,
+      "denominator": 25,
+      "published": 66.3677593812409
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_new_apps_evaluated_on_time_ct",
+      "quarter": "Q1 2023",
+      "numerator": 33,
+      "denominator": 52,
+      "published": 51.642178042394576
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_new_apps_evaluated_on_time_ct",
+      "quarter": "Q2 2023",
+      "numerator": 37,
+      "denominator": 51,
+      "published": 60.07389213085577
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_new_apps_evaluated_on_time_ct",
+      "quarter": "Q3 2023",
+      "numerator": 40,
+      "denominator": 48,
+      "published": 77.93112014186299
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_new_apps_evaluated_on_time_ct",
+      "quarter": "Q4 2023",
+      "numerator": 37,
+      "denominator": 49,
+      "published": 61.98085898231892
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_new_apps_evaluated_on_time_ct",
+      "quarter": "Q1 2024",
+      "numerator": 29,
+      "denominator": 35,
+      "published": 71.39739208959021
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "CT",
+      "kpi": "pct_new_apps_evaluated_on_time_ct",
+      "quarter": "Q2 2024",
+      "numerator": 34,
+      "denominator": 33
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_new_apps_evaluated_on_time_ct",
+      "quarter": "Q2 2024",
+      "numerator": 34,
+      "denominator": 33,
+      "published": 78.56209977924308
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_new_apps_evaluated_on_time_ct",
+      "quarter": "Q3 2024",
+      "numerator": 29,
+      "denominator": 29,
+      "published": 83.64651129566127
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "CT",
+      "kpi": "pct_new_apps_evaluated_on_time_ct",
+      "quarter": "Q4 2024",
+      "numerator": 33,
+      "denominator": 29
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_new_apps_evaluated_on_time_ct",
+      "quarter": "Q4 2024",
+      "numerator": 33,
+      "denominator": 29,
+      "published": 84.64695744603611
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_new_apps_evaluated_on_time_ct",
+      "quarter": "Q1 2025",
+      "numerator": 23,
+      "denominator": 23,
+      "published": 88.65789276988973
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "CT",
+      "kpi": "pct_new_apps_evaluated_on_time_ct",
+      "quarter": "Q2 2025",
+      "numerator": 24,
+      "denominator": 18
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_new_apps_evaluated_on_time_ct",
+      "quarter": "Q2 2025",
+      "numerator": 24,
+      "denominator": 18,
+      "published": 87.6035258509959
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_amendment_apps_evaluated_on_time",
+      "quarter": "Q1 2023",
+      "numerator": 28,
+      "denominator": 42,
+      "published": 70.49963807041497
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_amendment_apps_evaluated_on_time",
+      "quarter": "Q2 2023",
+      "numerator": 30,
+      "denominator": 43,
+      "published": 71.10332227387073
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_amendment_apps_evaluated_on_time",
+      "quarter": "Q3 2023",
+      "numerator": 27,
+      "denominator": 38,
+      "published": 75.4807851456696
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_amendment_apps_evaluated_on_time",
+      "quarter": "Q4 2023",
+      "numerator": 30,
+      "denominator": 39,
+      "published": 75.22665030953226
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_amendment_apps_evaluated_on_time",
+      "quarter": "Q1 2024",
+      "numerator": 19,
+      "denominator": 29,
+      "published": 75.67230720586426
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_amendment_apps_evaluated_on_time",
+      "quarter": "Q2 2024",
+      "numerator": 21,
+      "denominator": 29,
+      "published": 75.96419429140235
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_amendment_apps_evaluated_on_time",
+      "quarter": "Q3 2024",
+      "numerator": 19,
+      "denominator": 23,
+      "published": 76.44560488053632
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_amendment_apps_evaluated_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 21,
+      "denominator": 21,
+      "published": 80.86494395680343
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "CT",
+      "kpi": "pct_amendment_apps_evaluated_on_time",
+      "quarter": "Q1 2025",
+      "numerator": 14,
+      "denominator": 13
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_amendment_apps_evaluated_on_time",
+      "quarter": "Q1 2025",
+      "numerator": 14,
+      "denominator": 13,
+      "published": 81.09164430761469
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_amendment_apps_evaluated_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 11,
+      "denominator": 11,
+      "published": 81.9189418131679
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_inspections_on_time",
+      "quarter": "Q1 2023",
+      "numerator": 8,
+      "denominator": 14,
+      "published": 63.46723607714486
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_inspections_on_time",
+      "quarter": "Q2 2023",
+      "numerator": 9,
+      "denominator": 15,
+      "published": 62.926194474465724
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_inspections_on_time",
+      "quarter": "Q3 2023",
+      "numerator": 8,
+      "denominator": 15,
+      "published": 63.778487949107216
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_inspections_on_time",
+      "quarter": "Q4 2023",
+      "numerator": 12,
+      "denominator": 14,
+      "published": 65.9224915570707
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_inspections_on_time",
+      "quarter": "Q1 2024",
+      "numerator": 7,
+      "denominator": 12,
+      "published": 68.45422427002632
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_inspections_on_time",
+      "quarter": "Q2 2024",
+      "numerator": 7,
+      "denominator": 11,
+      "published": 68.02021209643088
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_inspections_on_time",
+      "quarter": "Q3 2024",
+      "numerator": 9,
+      "denominator": 13,
+      "published": 67.54398240073648
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "CT",
+      "kpi": "pct_gcp_inspections_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 11,
+      "denominator": 10
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_inspections_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 11,
+      "denominator": 10,
+      "published": 66.27619013777418
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_inspections_on_time",
+      "quarter": "Q1 2025",
+      "numerator": 6,
+      "denominator": 9,
+      "published": 71.27592526711423
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "CT",
+      "kpi": "pct_gcp_inspections_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 9,
+      "denominator": 8
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_inspections_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 9,
+      "denominator": 8,
+      "published": 71.76887997275877
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_safety_reports_assessed_on_time",
+      "quarter": "Q1 2023",
+      "numerator": 133,
+      "denominator": 158,
+      "published": 86.0846274268423
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_safety_reports_assessed_on_time",
+      "quarter": "Q2 2023",
+      "numerator": 151,
+      "denominator": 163,
+      "published": 85.33547553580722
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_safety_reports_assessed_on_time",
+      "quarter": "Q3 2023",
+      "numerator": 131,
+      "denominator": 150,
+      "published": 88.80958706841128
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_safety_reports_assessed_on_time",
+      "quarter": "Q4 2023",
+      "numerator": 138,
+      "denominator": 148,
+      "published": 90.78331009398778
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_safety_reports_assessed_on_time",
+      "quarter": "Q1 2024",
+      "numerator": 91,
+      "denominator": 108,
+      "published": 89.91429292307568
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_safety_reports_assessed_on_time",
+      "quarter": "Q2 2024",
+      "numerator": 88,
+      "denominator": 101,
+      "published": 90.95025775665475
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_safety_reports_assessed_on_time",
+      "quarter": "Q3 2024",
+      "numerator": 74,
+      "denominator": 87,
+      "published": 92.31837013773422
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_safety_reports_assessed_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 70,
+      "denominator": 76,
+      "published": 91.97832481223676
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_safety_reports_assessed_on_time",
+      "quarter": "Q1 2025",
+      "numerator": 45,
+      "denominator": 48,
+      "published": 95.4560654010605
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_safety_reports_assessed_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 28,
+      "denominator": 39,
+      "published": 93.50423610939393
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_compliant",
+      "quarter": "Q1 2023",
+      "numerator": 18,
+      "denominator": 22,
+      "published": 80.1435277897853
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_compliant",
+      "quarter": "Q2 2023",
+      "numerator": 19,
+      "denominator": 24,
+      "published": 80.16599853917825
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_compliant",
+      "quarter": "Q3 2023",
+      "numerator": 20,
+      "denominator": 20,
+      "published": 80.37555990376667
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_compliant",
+      "quarter": "Q4 2023",
+      "numerator": 20,
+      "denominator": 20,
+      "published": 82.79960523276527
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_compliant",
+      "quarter": "Q1 2024",
+      "numerator": 16,
+      "denominator": 17,
+      "published": 83.40101102155998
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_compliant",
+      "quarter": "Q2 2024",
+      "numerator": 13,
+      "denominator": 14,
+      "published": 85.48531773629576
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "CT",
+      "kpi": "pct_gcp_compliant",
+      "quarter": "Q3 2024",
+      "numerator": 14,
+      "denominator": 13
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_compliant",
+      "quarter": "Q3 2024",
+      "numerator": 14,
+      "denominator": 13,
+      "published": 88.33558409807752
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "CT",
+      "kpi": "pct_gcp_compliant",
+      "quarter": "Q4 2024",
+      "numerator": 14,
+      "denominator": 12
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_compliant",
+      "quarter": "Q4 2024",
+      "numerator": 14,
+      "denominator": 12,
+      "published": 91.59030039605753
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_compliant",
+      "quarter": "Q1 2025",
+      "numerator": 10,
+      "denominator": 11,
+      "published": 88.9511455717219
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_gcp_compliant",
+      "quarter": "Q2 2025",
+      "numerator": 5,
+      "denominator": 6,
+      "published": 90.81363230307333
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_registry_submissions_on_time",
+      "quarter": "Q1 2023",
+      "numerator": 52,
+      "denominator": 58,
+      "published": 91.00453842859017
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_registry_submissions_on_time",
+      "quarter": "Q2 2023",
+      "numerator": 57,
+      "denominator": 60,
+      "published": 92.18485854085088
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_registry_submissions_on_time",
+      "quarter": "Q3 2023",
+      "numerator": 46,
+      "denominator": 53,
+      "published": 91.58173426733825
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_registry_submissions_on_time",
+      "quarter": "Q4 2023",
+      "numerator": 47,
+      "denominator": 54,
+      "published": 95.34666274628003
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_registry_submissions_on_time",
+      "quarter": "Q1 2024",
+      "numerator": 35,
+      "denominator": 38,
+      "published": 94.57277707706459
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_registry_submissions_on_time",
+      "quarter": "Q2 2024",
+      "numerator": 37,
+      "denominator": 37,
+      "published": 97.5380922871962
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "CT",
+      "kpi": "pct_registry_submissions_on_time",
+      "quarter": "Q3 2024",
+      "numerator": 31,
+      "denominator": 29
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_registry_submissions_on_time",
+      "quarter": "Q3 2024",
+      "numerator": 31,
+      "denominator": 29,
+      "published": 95.24785353433202
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "CT",
+      "kpi": "pct_registry_submissions_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 25,
+      "denominator": 23
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_registry_submissions_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 25,
+      "denominator": 23,
+      "published": 96.76501792176501
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "CT",
+      "kpi": "pct_registry_submissions_on_time",
+      "quarter": "Q1 2025",
+      "numerator": 20,
+      "denominator": 13
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_registry_submissions_on_time",
+      "quarter": "Q1 2025",
+      "numerator": 20,
+      "denominator": 13,
+      "published": 99.89180464135976
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "CT",
+      "kpi": "pct_registry_submissions_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 17,
+      "denominator": 11
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_registry_submissions_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 17,
+      "denominator": 11,
+      "published": 100.75354613399642
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_capa_evaluated_on_time",
+      "quarter": "Q1 2023",
+      "numerator": 23,
+      "denominator": 33,
+      "published": 65.22727172855616
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_capa_evaluated_on_time",
+      "quarter": "Q2 2023",
+      "numerator": 21,
+      "denominator": 30,
+      "published": 67.6153796854801
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_capa_evaluated_on_time",
+      "quarter": "Q3 2023",
+      "numerator": 24,
+      "denominator": 28,
+      "published": 69.40094133410462
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_capa_evaluated_on_time",
+      "quarter": "Q4 2023",
+      "numerator": 23,
+      "denominator": 28,
+      "published": 69.88111612310587
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_capa_evaluated_on_time",
+      "quarter": "Q1 2024",
+      "numerator": 15,
+      "denominator": 21,
+      "published": 69.59354950128713
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_capa_evaluated_on_time",
+      "quarter": "Q2 2024",
+      "numerator": 13,
+      "denominator": 19,
+      "published": 73.04715706008487
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_capa_evaluated_on_time",
+      "quarter": "Q3 2024",
+      "numerator": 15,
+      "denominator": 17,
+      "published": 70.95204780371807
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_capa_evaluated_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 12,
+      "denominator": 14,
+      "published": 76.38538747149941
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_capa_evaluated_on_time",
+      "quarter": "Q1 2025",
+      "numerator": 9,
+      "denominator": 10,
+      "published": 77.66906895406237
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "CT",
+      "kpi": "pct_capa_evaluated_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 10,
+      "denominator": 9
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "CT",
+      "kpi": "pct_capa_evaluated_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 10,
+      "denominator": 9,
+      "published": 77.09717477810577
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_inspected_on_time",
+      "quarter": "Q1 2023",
+      "numerator": 25,
+      "denominator": 32,
+      "published": 70.90816127421083
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_inspected_on_time",
+      "quarter": "Q2 2023",
+      "numerator": 23,
+      "denominator": 34,
+      "published": 75.00797061206666
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_inspected_on_time",
+      "quarter": "Q3 2023",
+      "numerator": 24,
+      "denominator": 28,
+      "published": 76.40245089374585
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_inspected_on_time",
+      "quarter": "Q4 2023",
+      "numerator": 24,
+      "denominator": 28,
+      "published": 72.82064985959369
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_inspected_on_time",
+      "quarter": "Q1 2024",
+      "numerator": 16,
+      "denominator": 20,
+      "published": 81.5496776675601
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "GMP",
+      "kpi": "pct_facilities_inspected_on_time",
+      "quarter": "Q2 2024",
+      "numerator": 20,
+      "denominator": 19
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_inspected_on_time",
+      "quarter": "Q2 2024",
+      "numerator": 20,
+      "denominator": 19,
+      "published": 82.84631723941791
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "GMP",
+      "kpi": "pct_facilities_inspected_on_time",
+      "quarter": "Q3 2024",
+      "numerator": 16,
+      "denominator": 15
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_inspected_on_time",
+      "quarter": "Q3 2024",
+      "numerator": 16,
+      "denominator": 15,
+      "published": 86.91120355401505
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_inspected_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 16,
+      "denominator": 17,
+      "published": 86.71878920343013
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_inspected_on_time",
+      "quarter": "Q1 2025",
+      "numerator": 10,
+      "denominator": 10,
+      "published": 87.67886403727586
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "GMP",
+      "kpi": "pct_facilities_inspected_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 8,
+      "denominator": 6
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_inspected_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 8,
+      "denominator": 6,
+      "published": 87.2424132652058
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_inspections_waived_on_time",
+      "quarter": "Q1 2023",
+      "numerator": 7,
+      "denominator": 8,
+      "published": 76.55067228745797
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_inspections_waived_on_time",
+      "quarter": "Q2 2023",
+      "numerator": 7,
+      "denominator": 8,
+      "published": 75.2091512788275
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_inspections_waived_on_time",
+      "quarter": "Q3 2023",
+      "numerator": 5,
+      "denominator": 9,
+      "published": 78.06093131193342
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_inspections_waived_on_time",
+      "quarter": "Q4 2023",
+      "numerator": 6,
+      "denominator": 8,
+      "published": 79.29587674276458
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_inspections_waived_on_time",
+      "quarter": "Q1 2024",
+      "numerator": 4,
+      "denominator": 6,
+      "published": 80.50889401265422
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_inspections_waived_on_time",
+      "quarter": "Q2 2024",
+      "numerator": 6,
+      "denominator": 7,
+      "published": 79.14918668304688
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_inspections_waived_on_time",
+      "quarter": "Q3 2024",
+      "numerator": 4,
+      "denominator": 6,
+      "published": 81.65767487797979
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_inspections_waived_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 4,
+      "denominator": 6,
+      "published": 83.64226325297216
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_inspections_waived_on_time",
+      "quarter": "Q1 2025",
+      "numerator": 3,
+      "denominator": 4,
+      "published": 81.32696741349017
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_inspections_waived_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 3,
+      "denominator": 5,
+      "published": 83.82049810918437
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_compliant",
+      "quarter": "Q1 2023",
+      "numerator": 32,
+      "denominator": 40,
+      "published": 78.80415157861228
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_compliant",
+      "quarter": "Q2 2023",
+      "numerator": 35,
+      "denominator": 40,
+      "published": 77.70870092933959
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_compliant",
+      "quarter": "Q3 2023",
+      "numerator": 29,
+      "denominator": 36,
+      "published": 76.31575600289918
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_compliant",
+      "quarter": "Q4 2023",
+      "numerator": 34,
+      "denominator": 34,
+      "published": 76.5994342396353
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_compliant",
+      "quarter": "Q1 2024",
+      "numerator": 19,
+      "denominator": 27,
+      "published": 78.72027504350586
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_compliant",
+      "quarter": "Q2 2024",
+      "numerator": 20,
+      "denominator": 23,
+      "published": 76.82708268319507
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_compliant",
+      "quarter": "Q3 2024",
+      "numerator": 14,
+      "denominator": 19,
+      "published": 76.3891493105373
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_compliant",
+      "quarter": "Q4 2024",
+      "numerator": 16,
+      "denominator": 19,
+      "published": 81.07015618948262
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_compliant",
+      "quarter": "Q1 2025",
+      "numerator": 9,
+      "denominator": 11,
+      "published": 79.62814564877951
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "GMP",
+      "kpi": "pct_facilities_compliant",
+      "quarter": "Q2 2025",
+      "numerator": 11,
+      "denominator": 7
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_facilities_compliant",
+      "quarter": "Q2 2025",
+      "numerator": 11,
+      "denominator": 7,
+      "published": 80.72373638606318
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_capa_decisions_on_time",
+      "quarter": "Q1 2023",
+      "numerator": 21,
+      "denominator": 28,
+      "published": 70.60715209554075
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_capa_decisions_on_time",
+      "quarter": "Q2 2023",
+      "numerator": 24,
+      "denominator": 28,
+      "published": 75.10030714659513
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_capa_decisions_on_time",
+      "quarter": "Q3 2023",
+      "numerator": 20,
+      "denominator": 27,
+      "published": 71.56027665802795
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_capa_decisions_on_time",
+      "quarter": "Q4 2023",
+      "numerator": 20,
+      "denominator": 26,
+      "published": 76.67942908181779
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_capa_decisions_on_time",
+      "quarter": "Q1 2024",
+      "numerator": 12,
+      "denominator": 19,
+      "published": 76.63671872229327
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_capa_decisions_on_time",
+      "quarter": "Q2 2024",
+      "numerator": 15,
+      "denominator": 19,
+      "published": 78.52564665000128
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_capa_decisions_on_time",
+      "quarter": "Q3 2024",
+      "numerator": 13,
+      "denominator": 17,
+      "published": 75.93079998576074
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_capa_decisions_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 14,
+      "denominator": 15,
+      "published": 81.6691378167918
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_capa_decisions_on_time",
+      "quarter": "Q1 2025",
+      "numerator": 7,
+      "denominator": 10,
+      "published": 77.40285833755748
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_capa_decisions_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 9,
+      "denominator": 9,
+      "published": 81.0935836224968
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_applications_completed_on_time",
+      "quarter": "Q1 2023",
+      "numerator": 50,
+      "denominator": 57,
+      "published": 82.46698571743912
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_applications_completed_on_time",
+      "quarter": "Q2 2023",
+      "numerator": 48,
+      "denominator": 57,
+      "published": 80.20800312606319
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_applications_completed_on_time",
+      "quarter": "Q3 2023",
+      "numerator": 41,
+      "denominator": 54,
+      "published": 82.77125960949927
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_applications_completed_on_time",
+      "quarter": "Q4 2023",
+      "numerator": 48,
+      "denominator": 54,
+      "published": 84.81382836406011
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_applications_completed_on_time",
+      "quarter": "Q1 2024",
+      "numerator": 27,
+      "denominator": 36,
+      "published": 84.7974289474142
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_applications_completed_on_time",
+      "quarter": "Q2 2024",
+      "numerator": 32,
+      "denominator": 34,
+      "published": 85.36727360005791
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_applications_completed_on_time",
+      "quarter": "Q3 2024",
+      "numerator": 31,
+      "denominator": 31,
+      "published": 87.15176280819341
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "GMP",
+      "kpi": "pct_applications_completed_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 25,
+      "denominator": 22
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_applications_completed_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 25,
+      "denominator": 22,
+      "published": 86.4502514654857
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_applications_completed_on_time",
+      "quarter": "Q1 2025",
+      "numerator": 11,
+      "denominator": 15,
+      "published": 89.58077058252462
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "GMP",
+      "kpi": "pct_applications_completed_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 15,
+      "denominator": 10
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_applications_completed_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 15,
+      "denominator": 10,
+      "published": 91.94136727930673
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_reports_published_on_time",
+      "quarter": "Q1 2023",
+      "numerator": 23,
+      "denominator": 37,
+      "published": 65.98586838751957
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_reports_published_on_time",
+      "quarter": "Q2 2023",
+      "numerator": 26,
+      "denominator": 37,
+      "published": 70.7148668355298
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_reports_published_on_time",
+      "quarter": "Q3 2023",
+      "numerator": 24,
+      "denominator": 34,
+      "published": 68.36608687279461
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_reports_published_on_time",
+      "quarter": "Q4 2023",
+      "numerator": 22,
+      "denominator": 35,
+      "published": 71.06213858414607
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_reports_published_on_time",
+      "quarter": "Q1 2024",
+      "numerator": 15,
+      "denominator": 23,
+      "published": 74.49684889811863
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_reports_published_on_time",
+      "quarter": "Q2 2024",
+      "numerator": 18,
+      "denominator": 24,
+      "published": 74.03558278062891
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_reports_published_on_time",
+      "quarter": "Q3 2024",
+      "numerator": 14,
+      "denominator": 19,
+      "published": 74.18686002908285
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_reports_published_on_time",
+      "quarter": "Q4 2024",
+      "numerator": 17,
+      "denominator": 17,
+      "published": 75.4936669064271
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_reports_published_on_time",
+      "quarter": "Q1 2025",
+      "numerator": 7,
+      "denominator": 10,
+      "published": 74.98990915854158
+    },
+    {
+      "kind": "numerator_exceeds_denominator",
+      "process": "GMP",
+      "kpi": "pct_reports_published_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 12,
+      "denominator": 11
+    },
+    {
+      "kind": "percentage_disagrees_with_counts",
+      "process": "GMP",
+      "kpi": "pct_reports_published_on_time",
+      "quarter": "Q2 2025",
+      "numerator": 12,
+      "denominator": 11,
+      "published": 77.37788609185112
+    }
+  ],
+  "policy": "Reference for shape, targets and simulation scale only; not reconstructed real transactions."
+}

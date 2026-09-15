@@ -21,3 +21,40 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Local streaming runtime and credentials
+.env
+.venv/
+__pycache__/
+*.pyc
+streaming/.runtime/
+streaming/jars/
+streaming/generated/
+
+# Local service credentials - never commit
+docs/ACCESS.md
+.tools/
+infra/.terraform/
+infra/*.tfstate*
+infra/terraform.tfvars
+infra/generated/credentials.json
+# The Trino OIDC client secret. infra/generated/data.json and authz.rego are
+# policy, not secrets, so they stay tracked.
+infra/generated/trino_oidc.json
+infra/ansible/inventory/hosts.yml
+infra/ansible/kubeconfig
+infra/ansible/*.retry
+marketplace/generated/
+.delivery/
+delivery/vendor/
+delivery/environments/*.json
+!delivery/environments/*.example.json
+*.junit.xml
+
+# Delivery artefacts. images.built.json holds the digests a deployment consumes
+# and is produced by CI; .ci/ holds disposable per-run stacks and their secrets.
+delivery/images.built.json
+# Every credential in the stack. Belongs on the host, never in the repo.
+**/secrets.env
+delivery/vendor/
+.ci/

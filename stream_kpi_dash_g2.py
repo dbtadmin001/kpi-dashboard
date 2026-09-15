@@ -28,17 +28,24 @@ Last Updated: November 11, 2025
 """
 
 import json
+import re
+from contextlib import nullcontext
+import os
+import time
+import requests
 import pathlib
 import io
 import random
 from typing import Dict, Any, List, Tuple, Optional
 import streamlit as st
 import pandas as pd
+import analytics_answers
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
+from html import escape
 import numpy as np
 from scipy import stats  # For correlation/regression insights
-from string import Template
 
 
 # =======================
@@ -89,285 +96,24 @@ GMP_GROUP_COLORS = {
 # =======================
 # GLOBAL CSS STYLING
 # =======================
-# Template for custom CSS with variable substitution
-_css_tpl = Template(
-    """
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-* {
-    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-}
-.main .block-container {
-    padding-top: .6rem;
-    padding-bottom: 0;
-    background: $BG_COLOR;
-    max-width: 100%;
-}
-/* Enhanced Header */
-.header {
-    background: linear-gradient(135deg, $NDA_GREEN 0%, $NDA_DARK_GREEN 100%);
-    color: #fff;
-    padding: 1.5rem 2.5rem;
-    margin: -1rem -1rem 2rem -1rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    box-shadow: 0 8px 32px rgba(0,99,65,0.15);
-    border-radius: 0 0 24px 24px;
-    position: relative;
-    overflow: hidden;
-}
-.header::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 200px;
-    height: 200px;
-    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
-    border-radius: 50%;
-}
-.header h1 {
-    font-size: 2rem;
-    margin: 0;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    background: linear-gradient(135deg, #ffffff 0%, rgba(255,255,255,0.9) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-.header .subtitle {
-    margin: 0.25rem 0 0 0;
-    opacity: 0.9;
-    font-size: 1.1rem;
-    font-weight: 400;
-    letter-spacing: 0.01em;
-    color: rgba(255,255,255,0.9);
-}
-.header .version {
-    font-size: 0.85rem;
-    opacity: 0.9;
-    font-weight: 600;
-    background: rgba(255,255,255,0.15);
-    padding: 0.5rem 1rem;
-    border-radius: 12px;
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255,255,255,0.2);
-}
-/* Enhanced Panels */
-.panel {
-    background: $CARD_BG;
-    border: 1px solid $BORDER_COLOR;
-    border-radius: 16px;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
-    overflow: hidden;
-    margin-bottom: 1.5rem;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.panel:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-}
-.panel-header {
-    background: linear-gradient(135deg, $NDA_GREEN 0%, $NDA_DARK_GREEN 100%);
-    color: white;
-    padding: 1rem 1.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-radius: 16px 16px 0 0;
-}
-.panel-header h3 {
-    margin: 0;
-    font-weight: 700;
-    font-size: 1.1rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-.panel-body {
-    padding: 1.5rem;
-}
-.section-header {
-    color: $NDA_DARK_GREEN;
-    font-size: 1.15rem;
-    font-weight: 700;
-    margin: 1.5rem 0 1rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 2px solid $NDA_LIGHT_GREEN;
-}
-.kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1.25rem;
-}
-/* Enhanced KPI Cards */
-.kpi-card {
-    border: 1px solid $BORDER_COLOR;
-    background: #ffffff;
-    border-left: 6px solid $NDA_GREEN;
-    border-radius: 16px;
-    padding: 1.5rem;
-    box-shadow: 0 2px 16px rgba(0,0,0,0.04);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    overflow: hidden;
-}
-.kpi-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: linear-gradient(90deg, $NDA_GREEN, $NDA_ACCENT);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-.kpi-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 40px rgba(0,0,0,0.12);
-    border-left-color: $NDA_ACCENT;
-}
-.kpi-card:hover::before {
-    opacity: 1;
-}
-.kpi-title {
-    font-weight: 700;
-    color: $NDA_DARK_GREEN;
-    font-size: 0.95rem;
-    margin-bottom: 0.5rem;
-}
-.kpi-value {
-    font-size: 2rem;
-    font-weight: 800;
-    color: $TEXT_DARK;
-    line-height: 1.1;
-    margin: 0.5rem 0;
-    background: linear-gradient(135deg, $TEXT_DARK, $NDA_DARK_GREEN);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-.kpi-sub {
-    font-size: 0.78rem;
-    color: $TEXT_LIGHT;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-top: 0.75rem;
-}
-.kpi-chip {
-    display: inline-block;
-    border-radius: 12px;
-    padding: 4px 12px;
-    font-weight: 700;
-    border: 1px solid;
-    font-size: 0.75rem;
-    margin-right: 0.5rem;
-    margin-bottom: 0.5rem;
-    backdrop-filter: blur(10px);
-}
-.kpi-chip.ok {
-    color: $NDA_GREEN;
-    border-color: $NDA_GREEN;
-    background: rgba(0, 99, 65, 0.08);
-}
-.kpi-chip.bad {
-    color: #ef4444;
-    border-color: #ef4444;
-    background: rgba(239, 68, 68, 0.08);
-}
-.stProgress > div > div > div > div {
-    background: linear-gradient(90deg, $NDA_GREEN, $NDA_ACCENT) !important;
-}
-div[data-testid="stHorizontalBlock"] {
-    gap: 1rem;
-}
-/* Enhanced Builder */
-.stepper {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-    flex-wrap: wrap;
-}
-.step-pill {
-    background: #fff;
-    border: 1px solid $BORDER_COLOR;
-    padding: 0.5rem 1rem;
-    border-radius: 12px;
-    font-size: 0.85rem;
-    color: $TEXT_DARK;
-    transition: all 0.2s ease;
-}
-.step-pill.active {
-    background: $NDA_LIGHT_GREEN;
-    border-color: $NDA_GREEN;
-    box-shadow: 0 2px 8px rgba(0, 99, 65, 0.1);
-}
-.help-tag {
-    font-size: 0.78rem;
-    color: $TEXT_LIGHT;
-}
-/* Enhanced Tables */
-.dataframe {
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-}
-.dataframe thead th {
-    background: $NDA_LIGHT_GREEN !important;
-    color: $NDA_DARK_GREEN !important;
-    font-weight: 700 !important;
-    border: none !important;
-}
-/* Enhanced Buttons */
-.stButton button {
-    border-radius: 12px !important;
-    font-weight: 600 !important;
-    transition: all 0.2s ease !important;
-}
-.stButton button:hover {
-    transform: translateY(-1px);
-}
-/* Enhanced Sidebar */
-.css-1d391kg, .css-1lcbmhc {
-    background: $CARD_BG !important;
-}
-[data-testid="stSidebar"] {
-    border-right: 1px solid $BORDER_COLOR;
-}
-/* Custom scrollbar */
-::-webkit-scrollbar {
-    width: 6px;
-}
-::-webkit-scrollbar-track {
-    background: $BG_COLOR;
-}
-::-webkit-scrollbar-thumb {
-    background: $NDA_LIGHT_GREEN;
-    border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-    background: $NDA_GREEN;
-}
-</style>
-"""
+# Shared visual language for every chart and native Streamlit control.
+pio.templates["nda"] = go.layout.Template(
+    layout=dict(
+        font=dict(family="Inter, Arial, sans-serif", size=13, color=TEXT_DARK),
+        colorway=[NDA_GREEN, "#287DA8", "#D49A32", "#8469A5", "#B85C54"],
+        paper_bgcolor="white", plot_bgcolor="white",
+        xaxis=dict(showgrid=False, zeroline=False, linecolor="#DCE3E6", automargin=True),
+        yaxis=dict(gridcolor="#EDF1F3", zeroline=False, automargin=True),
+        legend=dict(orientation="h", y=-0.18, x=0, title_text=""),
+        hoverlabel=dict(bgcolor="#17352E", font_color="white"),
+        margin=dict(l=24, r=24, t=44, b=48),
+    )
 )
+pio.templates.default = "plotly_white+nda"
+px.defaults.template = "plotly_white+nda"
 
-# Apply CSS with token substitution
 st.markdown(
-    _css_tpl.substitute(
-        BG_COLOR=BG_COLOR,
-        NDA_GREEN=NDA_GREEN,
-        NDA_DARK_GREEN=NDA_DARK_GREEN,
-        NDA_ACCENT=NDA_ACCENT,
-        BORDER_COLOR=BORDER_COLOR,
-        CARD_BG=CARD_BG,
-        TEXT_DARK=TEXT_DARK,
-        TEXT_LIGHT=TEXT_LIGHT,
-        NDA_LIGHT_GREEN=NDA_LIGHT_GREEN,
-    ),
+    "<style>" + pathlib.Path(__file__).with_name("dashboard_theme.css").read_text(encoding="utf-8") + "</style>",
     unsafe_allow_html=True,
 )
 
@@ -383,30 +129,17 @@ def section_header(title: str, icon: str = "✅") -> None:
         title (str): The section title.
         icon (str): Optional icon emoji.
     """
-    st.markdown(f"""<div class="section-header">{icon} {title}</div>""", unsafe_allow_html=True)
+    st.markdown(f"""<div class="section-header">{escape(title)}</div>""", unsafe_allow_html=True)
 
 
 def panel_open(title: str, icon: str = "") -> None:
-    """
-    Open a styled panel with header.
-
-    Args:
-        title (str): Panel title.
-        icon (str): Optional icon for header.
-    """
-    st.markdown(
-        f"""
-        <div class="panel">
-          <div class="panel-header"><h3>{icon} {title}</h3></div>
-          <div class="panel-body">
-        """,
-        unsafe_allow_html=True,
-    )
+    """Render a section heading; native containers own widget layout."""
+    section_header(title, "")
 
 
 def panel_close() -> None:
-    """Close the current panel."""
-    st.markdown("</div></div>", unsafe_allow_html=True)
+    """Retained for section call sites; no cross-element HTML wrappers."""
+    pass
 
 
 # =======================
@@ -673,7 +406,7 @@ def status_for(kpi_id: str, value: float, target: float) -> str:
         str: Status ("success", "warning", "error").
     """
     if value is None or target is None:
-        return "error"
+        return "unknown"
     if kpi_id in TIME_BASED:  # Lower is better for time-based
         if value <= target:
             return "success"
@@ -723,17 +456,76 @@ def pct(v: Optional[float]) -> Optional[str]:
     return None if v is None else f"{round(v)}%"
 
 
-def csv_download(df: pd.DataFrame, filename: str) -> None:
-    """
-    Provide CSV download button for DataFrame.
 
-    Args:
-        df (pd.DataFrame): Data to download.
-        filename (str): Suggested filename.
+@st.cache_data(show_spinner=False, ttl=300)
+def _demo_accounts() -> list:
+    """Demonstration sign-ins, read from the local gitignored Terraform output.
+
+    Returns nothing when the file is absent, so a deployed copy of this app
+    never displays credentials it does not have.
     """
-    buf = io.StringIO()
-    df.to_csv(buf, index=True)
-    st.download_button("Download CSV", buf.getvalue(), file_name=filename, type="primary")
+    path = pathlib.Path(__file__).resolve().parent / "infra" / "generated" / "credentials.json"
+    if not path.exists():
+        return []
+    try:
+        generated = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    summary = {
+        "data-engineering": "All processes, full dashboard",
+        "ma-analysts": "Marketing authorization only",
+        "ct-analysts": "Clinical trials only",
+        "gmp-analysts": "Manufacturing quality only",
+        "public": "2 indicators per process",
+    }
+    return [
+        {"Username": name, "Password": user["password"], "Role": user["group"],
+         "Access": summary.get(user["group"], "")}
+        for name, user in sorted(generated.get("users", {}).items())
+    ]
+
+
+def export_rights() -> tuple:
+    """What the current viewer may export: (allowed, reason, formats).
+
+    An anonymous viewer keeps the dashboard's original behaviour. A signed-in
+    stakeholder is held to the entitlement Keycloak and OPA resolved for them,
+    so a view-only role sees why the button is absent rather than a dead button.
+    """
+    rights = st.session_state.get("nda_entitlement")
+    if rights is None:
+        return True, "", ["csv"]
+    if not rights.get("can_export"):
+        groups = ", ".join(rights.get("groups", [])) or "your role"
+        return False, f"{groups} is view-only — published indicators, no data export.", []
+    return True, "", list(rights.get("formats") or ["csv"])
+
+
+def csv_download(df: pd.DataFrame, filename: str) -> None:
+    """Offer this table in every format the viewer is entitled to."""
+    allowed, reason, formats = export_rights()
+    if not allowed:
+        st.caption("Export unavailable — " + reason)
+        return
+    stem = filename.rsplit(".", 1)[0]
+    # A container, not the module: st itself is not a context manager.
+    columns = st.columns(len(formats)) if len(formats) > 1 else [st.container()]
+    for column, fmt in zip(columns, formats):
+        with column:
+            if fmt == "xlsx":
+                buffer = io.BytesIO()
+                with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+                    df.to_excel(writer, sheet_name=stem[:31] or "data")
+                column.download_button(
+                    "Download Excel", buffer.getvalue(), file_name=f"{stem}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"dl_xlsx_{stem}")
+            else:
+                buffer = io.StringIO()
+                df.to_csv(buffer, index=True)
+                column.download_button(
+                    "Download CSV", buffer.getvalue(), file_name=f"{stem}.csv",
+                    mime="text/csv", type="primary", key=f"dl_csv_{stem}")
 
 
 def qp_all() -> dict:
@@ -770,7 +562,7 @@ FOCUS_KEY = "focus_kpi"
 def init_state(default_kpi: str) -> None:
     """Initialize session state for focused KPI."""
     if FOCUS_KEY not in st.session_state:
-        st.session_state[FOCUS_KEY] = default_kpi
+        st.session_state[FOCUS_KEY] = qp_get("kpi", None)
 
 
 def select_kpi(kpi_id: str, process: str, quarter: str) -> None:
@@ -1532,6 +1324,17 @@ def render_kpi_comparison(process: str, kpi_id: str, quarter: str, data: Dict[st
         quarter (str): Quarter.
         data (Dict): Data.
     """
+    if data.get("_meta", {}).get("source"):
+        observed = next((r for r in data.get("kpiCounts", {}).get(process, {}).get(kpi_id, []) if r["quarter"] == quarter), None)
+        if not observed:
+            st.info("No completed observations for this indicator and quarter.")
+        elif "sample_n" in observed:
+            st.metric("Completed observations", observed["sample_n"])
+        else:
+            fig = go.Figure(go.Bar(x=["Meeting criterion", "Not meeting criterion"], y=[observed["numerator"], observed["denominator"]-observed["numerator"]], marker_color=[NDA_GREEN, "#D96957"]))
+            fig.update_layout(height=300, yaxis_title="Completed activity observations")
+            st.plotly_chart(fig, use_container_width=True)
+        return
     d, title, categories, group_levels = _prepare_category_first_df(process, kpi_id, quarter, data)
     if d.empty or not title:
         st.info("No per-quarter comparison chart for this KPI.")
@@ -1815,7 +1618,7 @@ def kpi_card(
     ddisp = (
         None
         if delta is None
-        else (f"{'+' if delta > 0 else ''}{delta:.1f}" + ("%" if is_pct else ""))
+        else (f"{'+' if delta > 0 else ''}{delta:.1f}" + (" pp" if is_pct else ""))
     )
     good_vs_prev = (delta is not None) and ((delta < 0) if is_time else (delta > 0))
     status = status_for(
@@ -1829,31 +1632,40 @@ def kpi_card(
         "error": "Below target",
     }.get(status, "—")
     short = KPI_NAME_MAP.get(kpi_id, {}).get("short", kpi_id)
-    st.markdown(
-        f"""
-        <div class='kpi-card' style="border-left: 6px solid {bleft}; background: linear-gradient(180deg, {btint} 0%, rgba(0,0,0,0) 100%);">
-        """,
-        unsafe_allow_html=True,
-    )
-    st.markdown(f"<div class='kpi-title'>{short}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='kpi-value'>{vdisp}</div>", unsafe_allow_html=True)
+    unit = "days" if is_time else ""
     chips = []
     if ddisp:
-        chips.append(
-            f"<span class='kpi-chip {'ok' if good_vs_prev else 'bad'}'>{ddisp} vs prev</span>"
+        chips.append(f"<span class='kpi-chip {'neutral' if delta == 0 else ('ok' if good_vs_prev else 'bad')}'>{ddisp} vs previous quarter</span>")
+    chips.append(f"<span class='kpi-chip' style='color:{bleft};background:{btint}'>{status_label}</span>")
+    target = kpi_obj.get("target")
+    target_text = pct(target) if is_pct else (f"{target:g} {unit}" if isinstance(target, (int, float)) else "—")
+    with st.container(border=True, key=f"indicator_{process}_{kpi_id}"):
+        st.markdown(
+            f"<div class='kpi-topline' style='--accent:{bleft}'></div>"
+            f"<div class='kpi-title'>{escape(short)}</div>"
+            f"<div class='kpi-value'>{vdisp}<span class='kpi-unit'>{unit}</span></div>"
+            + " ".join(chips)
+            + f"<div class='kpi-sub'>Target: {target_text}<br>{escape(tiny_label(kpi_id))}</div>",
+            unsafe_allow_html=True,
         )
-    chips.append(
-        f"<span class='kpi-chip' style='border-color:{bleft}; color:{bleft}'>{status_label}</span>"
-    )
-    st.markdown(" ".join(chips), unsafe_allow_html=True)
-    st.markdown(f"<div class='kpi-sub'>{tiny_label(kpi_id)}</div>", unsafe_allow_html=True)
-    clicked = st.button(
-        "View details",
-        key=f"kbtn_{process}_{kpi_id}_{quarter}",
-        use_container_width=True,
-        type="secondary",
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
+        # A compact history uses only observations up to the selected quarter.
+        history = series[:series.index(cur) + 1] if cur else []
+        points = [item for item in history if isinstance(item.get("value"), (int, float))]
+        if len(points) > 1:
+            values = [item["value"] for item in points]
+            low, high = min(values), max(values)
+            span = high - low or 1
+            coords = [(4 + i * 292 / (len(values) - 1), 43 - (value - low) / span * 32) for i, value in enumerate(values)]
+            line = " ".join(f"{x:.1f},{y:.1f}" for x, y in coords)
+            area = f"4,52 {line} 296,52"
+            st.html(
+                f'<svg class="sparkline" viewBox="0 0 300 54" preserveAspectRatio="none" role="img" aria-label="Historical indicator trend">'
+                f'<polygon points="{area}" fill="{bleft}" opacity="0.09" />'
+                f'<polyline points="{line}" fill="none" stroke="{bleft}" stroke-width="2.5" stroke-linejoin="round" />'
+                f'<circle cx="{coords[-1][0]}" cy="{coords[-1][1]}" r="3.5" fill="{bleft}" /></svg>'
+                f'<div class="sparkline-labels"><span>{escape(points[0]["quarter"])}</span><span>{escape(points[-1]["quarter"])}</span></div>'
+            )
+        clicked = st.button("Explore indicator →", key=f"kbtn_{process}_{kpi_id}_{quarter}", use_container_width=True)
     return clicked
 
 
@@ -1863,11 +1675,13 @@ def kpi_card(
 st.markdown(
     """
 <div class="header">
-  <div>
-    <h1>National Drug Authority</h1>
-    <p class="subtitle">Regulatory KPI Dashboard</p>
+  <div class="hero-copy">
+    <div class="eyebrow">National Drug Authority &middot; Uganda</div>
+    <h1>Better regulation.<br><span>Measurable impact.</span></h1>
+    <p class="subtitle">A clear view of regulatory performance. Track progress, uncover bottlenecks and turn evidence into better decisions.</p>
+    <div class="hero-tags"><span>Marketing authorization</span><span>Clinical trials</span><span>Manufacturing quality</span></div>
   </div>
-  <div class="version">v4.2 — Enhanced Analytics</div>
+  <div class="hero-art" aria-hidden="true"><div class="orbit"></div><div class="art-label one">REGULATORY INTELLIGENCE</div><div class="art-label two">EVIDENCE INTO ACTION &#8599;</div></div>
 </div>
 """,
     unsafe_allow_html=True,
@@ -1877,12 +1691,138 @@ st.markdown(
 # =======================
 # SIDEBAR CONFIGURATION
 # =======================
-st.sidebar.image("logo.jpg", use_container_width=True)
-data_path = st.sidebar.text_input(
-    "Path to data (JSON exported from kpiData.js)", value="data/kpiData.json"
-)
-data = load_data(data_path)
-tab = st.sidebar.radio("View", ["Overview", "Reports"], index=0, horizontal=False)
+st.sidebar.image("logo.jpg", width=150)
+st.sidebar.markdown('<div class="sidebar-eyebrow">Explore the data</div>', unsafe_allow_html=True)
+with st.sidebar.expander("Data source", expanded=False):
+    # Default to the live analytics engine whenever its credentials are configured.
+    # Default to the role-gated view when identity is configured: this is an
+    # organizational dashboard, so who you are decides what it shows.
+    _access_configured = (pathlib.Path(__file__).resolve().parent
+                          / "infra" / "generated" / "credentials.json").exists()
+    _default_source = 2 if _access_configured else (1 if os.environ.get("NDA_API_KEY") else 0)
+    source_mode = st.radio("Source", ["Reference data", "Live application stream", "Sign in"],
+                           index=_default_source, key="nda_source_mode")
+    if source_mode == "Reference data":
+        data_path = st.text_input("Data file", value="data/kpiData.json")
+    else:
+        api_url = st.text_input("API URL", value=os.environ.get("NDA_API_URL", "http://127.0.0.1:8095"))
+        auto_refresh = st.checkbox("Auto-refresh", value=False,
+                                   help="Figures only change when the lakehouse commits a "
+                                        "checkpoint, about once a minute.")
+
+# Signed-in stakeholders get a view cut to their entitlement, resolved by
+# Keycloak (identity) and OPA (policy). Nothing here decides access itself.
+entitlement = st.session_state.get("nda_entitlement")
+if source_mode == "Sign in":
+    api_url = os.environ.get("NDA_API_URL", "http://127.0.0.1:8095").rstrip("/")
+    # Only shown once signed in; the main-area gate below handles signing in, so
+    # the sidebar does not duplicate the same form.
+    with st.sidebar.expander("Your account", expanded=False) if entitlement else nullcontext():
+        if entitlement:
+            who = st.session_state.get("nda_user", {})
+            st.markdown(f"**{who.get('name') or who.get('username')}**")
+            st.caption(" · ".join(entitlement.get("groups", [])) or "no group")
+            if st.button("Sign out", key="nda_signout"):
+                for key in ("nda_token", "nda_user", "nda_entitlement"):
+                    st.session_state.pop(key, None)
+                st.rerun()
+    if not st.session_state.get("nda_token"):
+        # A proper sign-in gate in the main area. The sidebar form alone was not
+        # discoverable, which is the whole point of a login screen.
+        st.markdown("## Sign in")
+        st.caption("Your role decides which regulatory processes you see and what you may export.")
+        gate, side = st.columns([3, 2], gap="large")
+        with gate:
+            with st.form("nda_signin_main"):
+                gate_user = st.text_input("Username", key="nda_username_main",
+                                          placeholder="e.g. alice.nakato")
+                gate_pass = st.text_input("Password", type="password", key="nda_password_main")
+                if st.form_submit_button("Sign in", type="primary") and gate_user:
+                    try:
+                        response = requests.post(api_url + "/v1/auth/login", timeout=30,
+                                                 json={"username": gate_user, "password": gate_pass})
+                        if response.status_code == 200:
+                            body = response.json()
+                            st.session_state["nda_token"] = body["access_token"]
+                            st.session_state["nda_user"] = body["user"]
+                            st.session_state["nda_entitlement"] = body["entitlement"]
+                            st.rerun()
+                        else:
+                            st.error(response.json().get("detail", "Sign in failed"))
+                    except requests.RequestException:
+                        st.error("The sign-in service is unavailable.")
+        with side:
+            st.markdown("##### Access levels")
+            levels = [
+                "| Role | Sees | Can export |",
+                "|---|---|---|",
+                "| Data engineering | All three processes | Bronze, silver, gold |",
+                "| MA / CT / GMP analyst | Their own process | That process, silver + gold |",
+                "| Public | 2 indicators per process | Nothing |",
+            ]
+            st.markdown(chr(10).join(levels))
+        accounts = _demo_accounts()
+        if accounts:
+            with st.expander("Demonstration accounts", expanded=True):
+                st.caption("Local synthetic environment. Read from the gitignored "
+                           "infra/generated/credentials.json, never from source control.")
+                st.dataframe(pd.DataFrame(accounts), hide_index=True, use_container_width=True)
+        st.stop()
+    try:
+        scoped = requests.get(api_url + "/v1/dashboard/scoped", timeout=120,
+                              headers={"Authorization": "Bearer " + st.session_state["nda_token"]})
+        if scoped.status_code == 401:
+            for key in ("nda_token", "nda_user", "nda_entitlement"):
+                st.session_state.pop(key, None)
+            st.warning("Your session expired. Sign in again.")
+            st.stop()
+        scoped.raise_for_status()
+        data = scoped.json()
+    except requests.RequestException:
+        st.error("The live data service is unavailable. Reference data has not been substituted.")
+        st.stop()
+    entitlement = st.session_state.get("nda_entitlement") or {}
+    shown = entitlement.get("indicators")
+    st.caption("Signed in as " + (st.session_state["nda_user"].get("name") or "user")
+               + " · " + ", ".join(entitlement.get("groups", []))
+               + " · processes: " + (", ".join(sorted(entitlement.get("processes", []))) or "none")
+               + (" · all indicators" if shown == "*" else f" · {len(shown or [])} indicators"))
+elif source_mode == "Reference data":
+    data = load_data(data_path)
+else:
+    try:
+        api_response = requests.get(api_url.rstrip("/") + "/v1/dashboard", headers={"X-API-Key": os.environ.get("NDA_API_KEY", "")}, timeout=15)
+        api_response.raise_for_status()
+        data = api_response.json()
+        if not all(k in data for k in ("quarterlyData", "processStepData", "kpiCounts", "quarterlyVolumes", "inspectionVolumes", "bottleneckData")):
+            raise ValueError("Incomplete dashboard contract")
+    except (requests.RequestException, ValueError):
+        st.error("The live data service is unavailable or not configured. Check the API connection and credentials. Reference data has not been substituted.")
+        st.stop()
+    st.caption("Synthetic application stream · " + data.get("_meta", {}).get("generated_at", "") + " · Figures update after a committed lakehouse checkpoint.")
+    # A rerun repaints the whole page, so it is paced to the checkpoint interval
+    # rather than to the polling interval - anything faster only made it flicker.
+    if auto_refresh:
+        @st.fragment(run_every=60)
+        def refresh_live_dashboard():
+            now = time.monotonic()
+            previous = st.session_state.get("nda_last_refresh", now)
+            if now - previous >= 59:
+                st.session_state["nda_last_refresh"] = now
+                st.rerun()
+            st.session_state.setdefault("nda_last_refresh", now)
+        refresh_live_dashboard()
+# The public view is indicator tiles only: operational detail (volumes, workflow
+# steps, bottlenecks) is withheld, so the Reports builder has nothing to work on
+# and is not offered rather than being shown empty or broken.
+_rights = entitlement or {}
+_has_operational_detail = bool(_rights.get("full_dashboard") or _rights.get("can_export")) if entitlement else True
+views = ["Overview"]
+if _has_operational_detail:
+    views.append("Reports")
+if _rights.get("can_export"):
+    views.append("Data downloads")
+tab = st.sidebar.radio("View", views, index=0, horizontal=False)
 
 # Extract all available quarters
 all_quarters = sorted(
@@ -1899,6 +1839,10 @@ all_quarters = sorted(
 # =======================
 # SELF-SERVICE ANALYTICS PREPARATION
 # =======================
+if not all_quarters:
+    st.info("Waiting for the first completed application activity to reach the KPI tables.")
+    st.stop()
+
 def prep_analysis(
     df: pd.DataFrame,
     analysis_type: str,
@@ -2468,10 +2412,15 @@ def filter_period(
 if tab == "Overview":
     process_default = qp_get("process", None)
     quarter_default = qp_get("quarter", None)
+    # A signed-in stakeholder is only offered the processes they are entitled to.
+    # The payload is already redacted server-side; this stops the UI advertising
+    # views that would come back empty.
+    allowed_processes = sorted((entitlement or {}).get("processes", [])) or ["MA", "CT", "GMP"]
+    allowed_processes = [p for p in ["MA", "CT", "GMP"] if p in allowed_processes]
     process = st.sidebar.radio(
         "Process",
-        ["MA", "CT", "GMP"],
-        index= (["MA", "CT", "GMP"].index(process_default) if process_default in ["MA", "CT", "GMP"] else 0),
+        allowed_processes,
+        index=(allowed_processes.index(process_default) if process_default in allowed_processes else 0),
         horizontal=True,
     )
     try:
@@ -2488,10 +2437,16 @@ if tab == "Overview":
     except Exception:
         st.experimental_set_query_params(quarter=quarter)
     disag_choice = st.sidebar.selectbox(
-        "Disaggregation (applies on drill-down & steps)",
+        "Breakdown",
         DISAG_UI_OPTIONS.get(process, ["All"]),
         index=0,
         help="KPIs show general view by default. Choose a disaggregation to view disag-specific trend and steps.",
+    )
+    process_name = {"MA": "Marketing authorization", "CT": "Clinical trials", "GMP": "Good manufacturing practice"}[process]
+    st.markdown(
+        f'<div class="context-bar"><strong>{process_name}</strong><span>/</span>'
+        f'<span>Performance overview</span><span class="context-period">{escape(quarter)}</span></div>',
+        unsafe_allow_html=True,
     )
     kpis_block = data["quarterlyData"][process]
     disagg_variants = {v for mapping in DISAG_KPI_LINKS.values() for v in mapping.values()}
@@ -2532,14 +2487,14 @@ if tab == "Overview":
             )
         st.markdown(
             f"""
-            <div style="border-radius:16px; padding:1.5rem; margin-bottom:1.5rem; background:#ffffff; border:1px solid {BORDER_COLOR}; box-shadow:0 8px 32px rgba(0,0,0,.08); border-left:12px solid {status_color(s)};">
-              <div style="font-size:1.2rem; font-weight:800; color:{TEXT_DARK}; margin-bottom:.5rem; background:linear-gradient(135deg, {TEXT_DARK}, {NDA_DARK_GREEN}); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">How is {KPI_NAME_MAP.get(effective_kpi_id, {}).get('long', kpi_id)} tracking against targets?</div>
-              <div style="font-size:1rem; opacity:.9;"><b>Current{curr_label} ({quarter})</b>: {curr_disp}{applied_badge} • <b>Target</b>: {pct(k.get('target')) if effective_kpi_id.startswith('pct_') else (k.get('target','—'))} • <b>Baseline</b>: {pct(k.get('baseline')) if effective_kpi_id.startswith('pct_') else (k.get('baseline','—'))} • <b>Status</b>: {status_label}</div>
+            <div class="detail-hero">
+              <h2>{escape(KPI_NAME_MAP.get(effective_kpi_id, {}).get('long', kpi_id))}</h2>
+              <p><b>Current{curr_label} &middot; {quarter}</b>: {curr_disp} &nbsp; / &nbsp; <b>Target</b>: {pct(k.get('target')) if effective_kpi_id.startswith('pct_') else k.get('target', '—')} &nbsp; / &nbsp; <b>Baseline</b>: {pct(k.get('baseline')) if effective_kpi_id.startswith('pct_') else k.get('baseline', '—')} &nbsp; / &nbsp; <b>{status_label}</b></p>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        if st.button("⬅️ Back to Overview", type="primary", use_container_width=True):
+        if st.button("← Back to overview", type="primary", use_container_width=True):
             st.session_state[FOCUS_KEY] = None
             try:
                 st.query_params.pop("kpi")
@@ -2558,7 +2513,7 @@ if tab == "Overview":
         st.stop()
 
     # Executive Summary Row
-    stat_counts = {"success": 0, "warning": 0, "error": 0}
+    stat_counts = {"success": 0, "warning": 0, "error": 0, "unknown": 0}
     for kid in ordered_ids:
         series = kpis_block[kid]["data"]
         cur = next((x for x in series if x["quarter"] == quarter), None)
@@ -2601,61 +2556,47 @@ if tab == "Overview":
     step_counts = process_step_status_counts(process, quarter, data["processStepData"])
     total_steps = sum(step_counts.values())
 
-    panel_open("How are our KPIs performing this quarter?", icon="👀")
+    summary_items = [
+        ("Indicators monitored", str(total_kpis), "Across this regulatory process", "#235D88", "#173E65", "▦"),
+        ("Meeting target", str(stat_counts["success"]), f"Of {total_kpis} indicators this quarter", "#087959", "#00543E", "↗"),
+        ("Need attention", str(stat_counts["warning"] + stat_counts["error"]), "Near or below the agreed target", "#AA6A23", "#88501A", "!"),
+        ("Process steps on track", f"{step_counts['success']} / {total_steps}", "Within target completion time", "#386E70", "#234C59", "◷"),
+    ]
+    for col, (label, value, note, accent, shade, icon) in zip(st.columns(4), summary_items):
+        with col:
+            st.markdown(f'<div class="summary-card" style="--accent:{accent};--shade:{shade}"><div class="summary-top"><div class="summary-label">{label}</div><span class="summary-icon">{icon}</span></div><div class="summary-value">{value}</div><div class="summary-note">{note}</div></div>', unsafe_allow_html=True)
+    panel_open("Quarter at a glance")
     left, right = st.columns(2)
-    with left:
-        st.markdown("**Are our KPIs meeting targets?**")
-        labels = ["On track", "At risk", "Off track"]
-        vals = [stat_counts["success"], stat_counts["warning"], stat_counts["error"]]
-        fig = px.pie(
-            values=vals,
-            names=labels,
-            hole=0.7,
-            color=labels,
-            color_discrete_map={"On track": NDA_GREEN, "At risk": NDA_ACCENT, "Off track": "#ef4444"},
-        )
-        fig.update_traces(textinfo="none")
-        fig.update_layout(
-            margin=dict(l=0, r=0, t=0, b=0),
-            height=240,
-            showlegend=True,
-            plot_bgcolor=CARD_BG,
-            paper_bgcolor=CARD_BG,
-        )
-        st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
-        st.caption(f"{stat_counts['success']} / {total_kpis} KPIs are on track.")
-        st.markdown(english_summary(stat_counts, "KPIs"))
-    with right:
-        st.markdown(f"**Where are delays showing up in {process} steps?**")
-        labels = ["On track", "At risk", "Off track"]
-        vals = [step_counts["success"], step_counts["warning"], step_counts["error"]]
-        fig = px.pie(
-            values=vals,
-            names=labels,
-            hole=0.7,
-            color=labels,
-            color_discrete_map={"On track": NDA_GREEN, "At risk": NDA_ACCENT, "Off track": "#ef4444"},
-        )
-        fig.update_traces(textinfo="none")
-        fig.update_layout(
-            margin=dict(l=0, r=0, t=0, b=0),
-            height=240,
-            showlegend=True,
-            plot_bgcolor=CARD_BG,
-            paper_bgcolor=CARD_BG,
-        )
-        st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
-        st.caption(f"{step_counts['success']} / {total_steps} steps are on track.")
-        st.markdown(english_summary(step_counts, "process steps"))
-    st.info(
-        "KPIs reflect **outcome/target** performance (general view). Process steps track **workflow speed** (actual days vs target). Use the sidebar disaggregation to drill down in KPI **details** & **steps**."
-    )
+    for col, counts, total, title, subtitle, key in [
+        (left, stat_counts, total_kpis, "Indicator performance", "Outcome measures against agreed targets", "indicators"),
+        (right, step_counts, total_steps, "Workflow performance", "Completion times across the regulatory process", "workflow"),
+    ]:
+        with col, st.container(border=True, key=f"chart_panel_{key}"):
+            st.markdown(f'<div class="chart-title">{title}</div><div class="chart-subtitle">{subtitle}</div>', unsafe_allow_html=True)
+            labels = ["On track", "At risk", "Off track", "No observations"]
+            vals = [counts["success"], counts["warning"], counts["error"], counts.get("unknown", 0)]
+            fig = go.Figure(go.Pie(
+                values=vals, labels=labels, hole=0.76, sort=False,
+                marker=dict(colors=["#12956B", "#E4B24D", "#D96957", "#ADBEB6"], line=dict(color="white", width=5)),
+                textinfo="none", hovertemplate="%{label}: %{value}<extra></extra>",
+            ))
+            center = f"{counts['success'] / total:.0%}" if total else "—"
+            fig.update_layout(
+                margin=dict(l=16, r=16, t=15, b=45), height=265,
+                showlegend=True, plot_bgcolor=CARD_BG, paper_bgcolor=CARD_BG,
+                legend=dict(orientation="h", x=.5, xanchor="center", y=-.08, font=dict(size=11)),
+                annotations=[dict(text=f"<b>{center}</b><br><span style='font-size:11px;color:#7B8F83'>ON TRACK</span>", x=.5, y=.5, showarrow=False, font=dict(size=32, color="#174535"))],
+            )
+            st.plotly_chart(fig, use_container_width=True, theme=None, config={"displaylogo": False, "displayModeBar": False})
+            st.caption(english_summary(counts, "KPIs" if key == "indicators" else "process steps"))
+    with st.expander("How to read this dashboard"):
+        st.write("Indicators measure outcomes against their targets. Workflow measures compare completion times with target days. Choose a breakdown in the sidebar, then explore an indicator to see its trends and process steps.")
     panel_close()
 
     # KPI Grid
-    panel_open(f"How is {process} performing on key metrics?", icon="📊")
-    st.markdown('<div class="kpi-grid">', unsafe_allow_html=True)
-    cols_per_row = 4
+    panel_open("Explore the indicators")
+    st.caption("Select an indicator to explore trends, targets and the underlying volumes.")
+    cols_per_row = 3
     for i in range(0, len(ordered_ids), cols_per_row):
         row_cols = st.columns(cols_per_row)
         for j, kpi_id in enumerate(ordered_ids[i : i + cols_per_row]):
@@ -2663,21 +2604,57 @@ if tab == "Overview":
                 if kpi_card(kpi_id, kpis_block[kpi_id], quarter, process=process):
                     select_kpi(kpi_id, process, quarter)
                     st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
     panel_close()
 
 
 # =======================
 # REPORTS TAB
 # =======================
-else:
-    process_reports = st.sidebar.selectbox("Process (Reports)", ["MA", "CT", "GMP"])
-    quarter_reports = st.sidebar.selectbox("Quarter (Reports)", all_quarters, index=len(all_quarters) - 1)
+elif tab == "Reports":
+    _reports_processes = sorted((entitlement or {}).get("processes", [])) or ["MA", "CT", "GMP"]
+    _reports_processes = [p for p in ["MA", "CT", "GMP"] if p in _reports_processes]
     view = st.sidebar.radio(
-        "Reports View", ["Quarterly Volumes & Self-Service Analytics", "Bottleneck Analysis"], horizontal=False
+        "Reports View",
+        ["Answer a question", "Bottleneck Analysis", "Build your own analysis"],
+        horizontal=False,
+        help="Start with a question. The builder is there if you need a cut we have not anticipated.",
     )
-    if view == "Quarterly Volumes & Self-Service Analytics":
-        panel_open("What custom insights do you want to uncover?", icon="🧮")
+
+    if view == "Answer a question":
+        panel_open("Analysis")
+        st.markdown("#### What do you need to know?")
+        available_questions = [
+            q for q in analytics_answers.QUESTIONS
+            if q != "How do our processes compare?" or len(_reports_processes) > 1
+        ]
+        question = st.radio(
+            "Question", available_questions, key="rep_question", label_visibility="collapsed",
+            format_func=lambda q: q,
+        )
+        st.caption(analytics_answers.HINTS[question])
+        scope_left, scope_right = st.columns([2, 1], gap="large")
+        with scope_left:
+            picked = st.multiselect(
+                "Processes to include", _reports_processes, default=_reports_processes,
+                key="rep_scope",
+                help="Defaults to every process you have access to.",
+            ) or _reports_processes
+        with scope_right:
+            as_of = st.selectbox("Quarter", list(reversed(all_quarters)), key="rep_quarter")
+        st.divider()
+        analytics_answers.render(
+            question, data, picked, as_of, all_quarters,
+            KPI_NAME_MAP, TIME_BASED, csv_download,
+        )
+        panel_close()
+
+    if view != "Answer a question":
+        process_reports = st.sidebar.selectbox("Process (Reports)", _reports_processes)
+        quarter_reports = st.sidebar.selectbox("Quarter (Reports)", all_quarters,
+                                               index=len(all_quarters) - 1)
+
+    if view == "Build your own analysis":
+        panel_open("Custom analysis")
         st.markdown(
             "**Welcome to Self-Service Analytics!** Build custom views of your regulatory data. Start with Period & Scope, then choose an Analysis Type. Use % Change for trends to spot improvements/declines."
         )
@@ -2731,6 +2708,8 @@ else:
         pool = pd.concat(
             [df_vol, df_steps if include_steps else pd.DataFrame(columns=df_vol.columns)], ignore_index=True
         )
+        if "process" not in pool.columns:
+            pool = pd.DataFrame(columns=["process", "metric_name", "quarter", "value"])
         pool = pool[pool["process"].isin(processes_selected)] if processes_selected else pool
         pool = filter_period(pool, period_mode, all_quarters, q_single, q_from, q_to, y_from, y_to)
         if pool.empty:
@@ -2831,12 +2810,12 @@ else:
                 "👆 Select metrics above to generate your analysis. Example: For trends, pick 'Applications Received' and group by quarter."
             )
         panel_close()
-    else:
+    elif view == "Bottleneck Analysis":
         # Bottleneck Analysis
 
         @st.cache_data(show_spinner=False)
         def reports_prepare_bottleneck_df(
-            process: str, quarter: str, bottleneck_data: Dict[str, Any]
+            process: str, quarter: str, bottleneck_data: Dict[str, Any], allow_estimates: bool = True
         ) -> pd.DataFrame:
             """
             Prepare bottleneck DF with fallback random data if missing.
@@ -2850,6 +2829,9 @@ else:
                 pd.DataFrame: Bottleneck metrics.
             """
             steps_data = bottleneck_data.get(process, {})
+            if not allow_estimates:
+                observed_rows = [{"step": step, **row} for step, series in steps_data.items() for row in series if row.get("quarter") == quarter]
+                return pd.DataFrame(observed_rows)
             if not steps_data:
                 default_steps = {
                     "MA": [
@@ -2908,9 +2890,9 @@ else:
                 )
             return df
 
-        panel_open(f"Where are the biggest bottlenecks in {process_reports}?", icon="🔬")
+        panel_open(f"{process_reports} · Workflow bottlenecks")
         df_b = reports_prepare_bottleneck_df(
-            process_reports, quarter_reports, data.get("bottleneckData", {})
+            process_reports, quarter_reports, data.get("bottleneckData", {}), allow_estimates=not bool(data.get("_meta", {}).get("source"))
         )
         c1, c2 = st.columns(2)
         with c1:
@@ -2976,7 +2958,7 @@ else:
             display_cols = core_cols + [spec_col]
             raw_cols = [c[0] for c in display_cols]
             display_names = [c[1] for c in display_cols]
-            df_display = df_b[raw_cols + ["step"]].set_index("step")
+            df_display = df_b.reindex(columns=raw_cols + ["step"]).set_index("step")
             df_display.columns = display_names
             st.dataframe(
                 df_display.style.format(
@@ -3001,3 +2983,109 @@ else:
                 f"bottleneck_metrics_{process_reports}_{quarter_reports}.csv",
             )
         panel_close()
+
+
+# =======================
+# DATA DOWNLOADS TAB
+# =======================
+# Only reachable when OPA says the signed-in stakeholder may export. The tab
+# never decides access itself: it renders the catalogue the API offers, and the
+# API re-checks every request, so a tampered UI gains nothing.
+if tab == "Data downloads":
+    rights = st.session_state.get("nda_entitlement") or {}
+    token = st.session_state.get("nda_token")
+    api_url = os.environ.get("NDA_API_URL", "http://127.0.0.1:8095").rstrip("/")
+    headers = {"Authorization": "Bearer " + token} if token else {}
+
+    st.markdown("## Curated data downloads")
+    st.caption(
+        "Tables you are entitled to export, filtered to your processes. "
+        f"Limit {rights.get('row_limit', 0):,} rows per download."
+    )
+
+    @st.cache_data(show_spinner=False, ttl=60)
+    def load_catalog(bearer: str) -> Dict[str, Any]:
+        response = requests.get(api_url + "/v1/catalog", timeout=60,
+                                headers={"Authorization": "Bearer " + bearer})
+        response.raise_for_status()
+        return response.json()
+
+    try:
+        catalog = load_catalog(token)
+    except requests.RequestException:
+        st.error("Could not load the data catalogue. Check the serving API.")
+        st.stop()
+
+    datasets = catalog.get("datasets", [])
+    if not datasets:
+        st.info("Your role does not include data export.")
+        st.stop()
+
+    # Choose by what the records ARE, not by where they are stored. The physical
+    # layer/table names stay behind the scenes as an id.
+    records = sorted({d["record"] for d in datasets})
+    record = st.selectbox("What records do you need?", records, key="dl_record")
+    for_record = [d for d in datasets if d["record"] == record]
+    st.caption(for_record[0]["record_description"])
+
+    processes = sorted({d["process"] for d in for_record})
+    left, right = st.columns([3, 2], gap="large")
+    with left:
+        process = st.selectbox("Which regulatory process?", processes, key="dl_process")
+        for_process = [d for d in for_record if d["process"] == process]
+        details = sorted({(d["detail_order"], d["detail"]) for d in for_process})
+        detail = st.radio("How much detail?", [name for _, name in details], key="dl_detail",
+                          help="Reporting data matches the dashboard. Change history is for auditing.")
+        chosen = next(d for d in for_process if d["detail"] == detail)
+        st.caption(chosen["detail_description"])
+    with right:
+        fmt = st.radio("File type", catalog.get("formats", ["csv"]),
+                       format_func=lambda f: {"csv": "CSV (spreadsheet)", "xlsx": "Excel workbook"}.get(f, f),
+                       key="dl_format")
+        max_rows = int(catalog.get("row_limit", 50000))
+        rows = st.number_input("Maximum rows", min_value=100, max_value=max_rows,
+                               value=min(50000, max_rows), step=1000, key="dl_rows")
+
+    layer, table = chosen["layer"], chosen["table"]
+    import datetime as _dt
+    since = st.date_input("Include records received from", value=_dt.date(2025, 1, 1), key="dl_since")
+    since_month = since.replace(day=1)
+    if layer == "nda_bronze":
+        st.caption("The change history covers everything captured and is not filtered by date.")
+    st.markdown(f"**You are about to download:** {chosen['title']} — {chosen['detail'].lower()}")
+
+    if st.button("Prepare download", type="primary", key="dl_go"):
+        with st.spinner(f"Querying {layer}.{table}…"):
+            try:
+                response = requests.get(api_url + "/v1/export", headers=headers, timeout=300,
+                                        params={"layer": layer, "table": table, "format": fmt,
+                                                "since": since_month.isoformat(), "limit": int(rows)})
+            except requests.RequestException:
+                st.error("The export service is unavailable.")
+                response = None
+        if response is not None:
+            if response.status_code == 200:
+                count = response.headers.get("X-Row-Count", "?")
+                slug = re.sub(r"[^a-z0-9]+", "-",
+                              f"{chosen['process']} {chosen['record']}".lower()).strip("-")
+                name = f"nda-{slug}.{fmt}"
+                st.success(f"{count} rows ready — {len(response.content):,} bytes")
+                st.download_button(f"Download {name}", data=response.content, file_name=name,
+                                   mime=response.headers.get("Content-Type", "application/octet-stream"),
+                                   key="dl_file")
+            elif response.status_code == 403:
+                st.error("Your access does not include this table or format.")
+            else:
+                st.error(f"Export failed ({response.status_code}).")
+
+    with st.expander("What you are entitled to", expanded=False):
+        st.write({
+            "groups": rights.get("groups", []),
+            "processes": sorted(rights.get("processes", [])),
+            "layers": rights.get("layers", []),
+            "formats": rights.get("formats", []),
+            "row limit": rights.get("row_limit", 0),
+            "full dashboard": rights.get("full_dashboard", False),
+        })
+        st.caption("Granted by your role and evaluated centrally, so the same rules apply "
+                   "whether you use this page or the data service directly.")

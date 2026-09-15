@@ -1,0 +1,148 @@
+name: nda-streaming
+# Only missing services. MinIO, REST catalog, Trino, Airflow and OpenMetadata
+# remain owned by their existing project. Never use down/prune on that project.
+services:
+  kafka:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.10
+    pull_policy: never
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --memory=768M
+      - --reserve-memory=0M
+      - --overprovisioned
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://nda-kafka:9092,external://127.0.0.1:19092
+    ports: ["127.0.0.1:19092:19092"]
+    networks:
+      shared: {aliases: [nda-kafka]}
+    volumes: ["kafka-data:/var/lib/redpanda/data"]
+    mem_limit: 1g
+    restart: unless-stopped
+  sqlserver:
+    image: ${SQLSERVER_IMAGE:?Set SQLSERVER_IMAGE}
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD}
+      MSSQL_AGENT_ENABLED: "true"
+      MSSQL_MEMORY_LIMIT_MB: "2048"
+    ports: ["127.0.0.1:14333:1433"]
+    networks:
+      shared: {aliases: [nda-sqlserver]}
+    volumes: ["sqlserver-data:/var/opt/mssql"]
+    mem_limit: 3g
+    restart: unless-stopped
+  connect:
+    image: ${DEBEZIUM_IMAGE:?Set DEBEZIUM_IMAGE}
+    environment:
+      BOOTSTRAP_SERVERS: nda-kafka:9092
+      GROUP_ID: nda-connect-v1
+      CONFIG_STORAGE_TOPIC: nda.connect.configs
+      OFFSET_STORAGE_TOPIC: nda.connect.offsets
+      STATUS_STORAGE_TOPIC: nda.connect.status
+      CONFIG_STORAGE_REPLICATION_FACTOR: "1"
+      OFFSET_STORAGE_REPLICATION_FACTOR: "1"
+      STATUS_STORAGE_REPLICATION_FACTOR: "1"
+      HEAP_OPTS: -Xms256m -Xmx512m
+    ports: ["127.0.0.1:${CONNECT_PORT:-8093}:8083"]
+    networks:
+      shared: {aliases: [nda-connect]}
+    mem_limit: 1g
+    restart: unless-stopped
+  jobmanager:
+    image: ${FLINK_IMAGE:?Set FLINK_IMAGE}
+    command: jobmanager
+    environment: &flink_env
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?Set AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?Set AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: us-east-1
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: nda-jobmanager
+        jobmanager.memory.process.size: 1024m
+        taskmanager.memory.process.size: 5120m
+        taskmanager.numberOfTaskSlots: 2
+        # 39 Iceberg writers buffer on the JAVA HEAP; this job's keyed state is tiny,
+        # so the default 40% managed-memory reservation starves the part that matters.
+        taskmanager.memory.managed.fraction: 0.1
+        parallelism.default: 1
+        state.backend.type: rocksdb
+        state.checkpoints.dir: file:///opt/flink/state/checkpoints
+        state.savepoints.dir: file:///opt/flink/state/savepoints
+        execution.checkpointing.interval: 60s
+        execution.checkpointing.mode: EXACTLY_ONCE
+        execution.checkpointing.externalized-checkpoint-retention: RETAIN_ON_CANCELLATION
+    ports: ["127.0.0.1:8084:8081"]
+    networks:
+      shared: {aliases: [nda-jobmanager]}
+    volumes: &flink_volumes
+      - ./jars/iceberg-flink-runtime-1.20-1.9.2.jar:/opt/flink/lib/iceberg-flink-runtime-1.20-1.9.2.jar:ro
+      - ./jars/iceberg-aws-bundle-1.9.2.jar:/opt/flink/lib/iceberg-aws-bundle-1.9.2.jar:ro
+      - ./jars/flink-sql-connector-kafka-3.3.0-1.20.jar:/opt/flink/lib/flink-sql-connector-kafka-3.3.0-1.20.jar:ro
+      - ./jars/flink-shaded-hadoop-2-uber-2.8.3-10.0.jar:/opt/flink/lib/flink-shaded-hadoop-2-uber-2.8.3-10.0.jar:ro
+      - ./generated:/opt/flink/sql:ro
+      - flink-state:/opt/flink/state
+    mem_limit: 1400m
+    restart: unless-stopped
+  taskmanager:
+    image: ${FLINK_IMAGE:?Set FLINK_IMAGE}
+    command: taskmanager
+    environment: *flink_env
+    networks: [shared]
+    volumes: *flink_volumes
+    mem_limit: 5632m
+    restart: unless-stopped
+  keycloak:
+    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.7.3}
+    # The issuer must be pinned. With --hostname-strict=false Keycloak derives it
+    # from the request, so a token fetched at 127.0.0.1:8180 and one fetched at
+    # nda-keycloak:8180 carry different `iss` values and Trino rejects whichever
+    # it was not configured for. --hostname fixes the issuer and the browser URLs;
+    # --hostname-backchannel-dynamic lets containers still reach it by its
+    # internal name for JWKS and token exchange.
+    command:
+      - start-dev
+      - --http-port=8180
+      - --hostname=${KEYCLOAK_PUBLIC_URL:-http://localhost:8180}
+      - --hostname-backchannel-dynamic=true
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD}
+      KC_HEALTH_ENABLED: "true"
+      # Dev mode keeps identity in an embedded H2 store; Terraform is the source of
+      # truth, so the realm is reproducible without a separate database.
+      JAVA_OPTS_KC_HEAP: -Xms256m -Xmx768m
+    ports: ["127.0.0.1:8180:8180"]
+    # The embedded H2 store lives here. WITHOUT this volume it lives in the
+    # container layer, so `compose up` after any change to this service silently
+    # destroys the realm - every user, group and client gone. Terraform can
+    # rebuild it, but losing it on a config edit is not an acceptable default.
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+    networks:
+      shared: {aliases: [nda-keycloak]}
+    mem_limit: 1200m
+    restart: unless-stopped
+  opa:
+    image: ${OPA_IMAGE:-openpolicyagent/opa:1.20.2}
+    # Policy and data are rendered by Terraform, so entitlements are declared once.
+    command: ["run", "--server", "--addr=0.0.0.0:8181", "--log-level=error",
+              "/policy/authz.rego", "/policy/data.json"]
+    volumes: ["../infra/generated:/policy:ro"]
+    ports: ["127.0.0.1:8182:8181"]
+    networks:
+      shared: {aliases: [nda-opa]}
+    mem_limit: 256m
+    restart: unless-stopped
+networks:
+  shared:
+    external: true
+    name: ${SHARED_NETWORK:-atc-poc_pipeline_net}
+volumes:
+  keycloak-data:
+  kafka-data:
+  sqlserver-data:
+  flink-state:
