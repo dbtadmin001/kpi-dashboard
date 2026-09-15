@@ -93,6 +93,9 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
 
     flink_properties = "\n".join([
         "jobmanager.rpc.address: jobmanager", "jobmanager.memory.process.size: 1024m",
+        # SQL client runs in its own container. It must submit through the
+        # JobManager DNS name, never the wildcard bind address (0.0.0.0).
+        "rest.address: jobmanager", "rest.port: 8081",
         "taskmanager.memory.process.size: 5120m", "taskmanager.numberOfTaskSlots: 2",
         "taskmanager.memory.managed.fraction: 0.1", "parallelism.default: 1",
         "state.backend.type: rocksdb", "state.checkpoints.dir: file:///opt/flink/state/checkpoints",
