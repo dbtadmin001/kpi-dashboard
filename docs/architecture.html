@@ -1,0 +1,750 @@
+<title>NDA Lakehouse Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --bg:#F5F8F6; --surface:#FFFFFF; --surface-2:#EDF2EE;
+    --text:#0E1A15; --text-muted:#55675E; --text-faint:#7C8C84;
+    --rule:#D8E2DB; --rule-strong:#B9C8BF;
+    --accent:#0B5136; --accent-2:#12805A; --accent-wash:#E4EFE8;
+    --warn:#8A5D0F; --warn-wash:#F6EEDC;
+    --risk:#8C3A2E; --risk-wash:#F7E7E3;
+    --ok:#11674A;
+    --shadow:0 1px 2px rgba(14,26,21,.05), 0 8px 24px -16px rgba(14,26,21,.25);
+    --measure:70ch;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0C1310; --surface:#131C18; --surface-2:#18231E;
+      --text:#E6EDE8; --text-muted:#9DB0A6; --text-faint:#7A8D83;
+      --rule:#243128; --rule-strong:#33453A;
+      --accent:#5FCB9B; --accent-2:#7FD9B0; --accent-wash:#15271F;
+      --warn:#D8A54E; --warn-wash:#261E10;
+      --risk:#E08573; --risk-wash:#2A1713;
+      --ok:#5FCB9B;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -18px rgba(0,0,0,.8);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0C1310; --surface:#131C18; --surface-2:#18231E;
+    --text:#E6EDE8; --text-muted:#9DB0A6; --text-faint:#7A8D83;
+    --rule:#243128; --rule-strong:#33453A;
+    --accent:#5FCB9B; --accent-2:#7FD9B0; --accent-wash:#15271F;
+    --warn:#D8A54E; --warn-wash:#261E10;
+    --risk:#E08573; --risk-wash:#2A1713;
+    --ok:#5FCB9B;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -18px rgba(0,0,0,.8);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+    font-size:16.5px; line-height:1.65; margin:0;
+    -webkit-font-smoothing:antialiased;
+  }
+  .page{
+    display:grid;
+    grid-template-columns:minmax(18px,1fr) min(var(--measure),100%) minmax(18px,1fr);
+    padding-block:0 5rem;
+  }
+  .page > *{grid-column:2}
+  .wide{grid-column:1/-1; justify-self:center; width:min(1080px,calc(100% - 36px))}
+
+  h1,h2,h3{font-family:Newsreader,Georgia,serif; font-weight:600; text-wrap:balance; margin:0}
+  h1{font-size:clamp(2.1rem,5.2vw,3.1rem); line-height:1.1; letter-spacing:-.015em}
+  h2{font-size:clamp(1.45rem,3.2vw,1.9rem); line-height:1.2; letter-spacing:-.01em}
+  h3{font-size:1.12rem; line-height:1.3; font-weight:600}
+  p{margin:0}
+  a{color:var(--accent-2); text-underline-offset:3px; text-decoration-thickness:1px}
+  a:focus-visible,summary:focus-visible{outline:2px solid var(--accent-2); outline-offset:3px; border-radius:3px}
+  code,.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.87em}
+  code{background:var(--surface-2); padding:.1em .38em; border-radius:4px; color:var(--text)}
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace; font-size:.7rem; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--text-faint); font-weight:500;
+  }
+
+  /* masthead */
+  header.mast{padding-block:3.5rem 2rem; display:flex; flex-direction:column; gap:1rem}
+  .mast .rule{height:3px; width:64px; background:var(--accent); border-radius:2px}
+  .standfirst{font-size:1.12rem; color:var(--text-muted); max-width:62ch}
+  .meta{
+    display:flex; flex-wrap:wrap; gap:.4rem 1.4rem; padding-top:.75rem;
+    border-top:1px solid var(--rule); font-size:.82rem; color:var(--text-faint);
+    font-family:"IBM Plex Mono",monospace;
+  }
+
+  /* sections */
+  section{padding-block:2.4rem; border-top:1px solid var(--rule)}
+  section > * + *{margin-top:1.1rem}
+  .sec-head{display:flex; gap:.9rem; align-items:baseline}
+  .sec-num{
+    font-family:"IBM Plex Mono",monospace; font-size:.78rem; color:var(--accent);
+    font-weight:500; padding-top:.35rem; flex:none;
+  }
+
+  /* status strip */
+  .strip{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(158px,1fr)); gap:1px;
+    background:var(--rule); border:1px solid var(--rule); border-radius:8px; overflow:hidden;
+  }
+  .stat{background:var(--surface); padding:.95rem 1.05rem; display:flex; flex-direction:column; gap:.2rem}
+  .stat .v{font-family:Newsreader,serif; font-size:1.75rem; font-weight:600; line-height:1; font-variant-numeric:tabular-nums}
+  .stat .k{font-size:.74rem; color:var(--text-faint); letter-spacing:.04em}
+  .stat.good .v{color:var(--ok)}
+
+  /* tables */
+  .tw{overflow-x:auto; border:1px solid var(--rule); border-radius:8px; background:var(--surface)}
+  table{border-collapse:collapse; width:100%; font-size:.88rem}
+  th,td{text-align:left; padding:.62rem .8rem; border-bottom:1px solid var(--rule); vertical-align:top}
+  thead th{
+    font-family:"IBM Plex Mono",monospace; font-size:.7rem; text-transform:uppercase;
+    letter-spacing:.09em; color:var(--text-faint); font-weight:500;
+    background:var(--surface-2); white-space:nowrap;
+  }
+  tbody tr:last-child td{border-bottom:0}
+  td.num{font-variant-numeric:tabular-nums; white-space:nowrap}
+  .t-mono{font-family:"IBM Plex Mono",monospace; font-size:.82rem}
+
+  /* pills */
+  .pill{
+    display:inline-block; font-family:"IBM Plex Mono",monospace; font-size:.68rem;
+    padding:.14em .5em; border-radius:4px; letter-spacing:.03em; white-space:nowrap;
+  }
+  .pill.live{background:var(--accent-wash); color:var(--accent)}
+  .pill.warn{background:var(--warn-wash); color:var(--warn)}
+  .pill.risk{background:var(--risk-wash); color:var(--risk)}
+
+  /* callouts */
+  .note{
+    border-left:3px solid var(--accent); background:var(--surface); padding:.95rem 1.1rem;
+    border-radius:0 8px 8px 0; font-size:.93rem;
+  }
+  .note.warn{border-left-color:var(--warn)}
+  .note.risk{border-left-color:var(--risk)}
+  .note strong{font-weight:600}
+
+  /* comparison */
+  .versus{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--rule);
+    border:1px solid var(--rule); border-radius:8px; overflow:hidden}
+  .versus > div{background:var(--surface); padding:1.05rem 1.15rem}
+  .versus h3{margin-bottom:.5rem; font-size:1rem}
+  .versus ul{margin:0; padding-left:1.05rem; font-size:.88rem; color:var(--text-muted)}
+  .versus li + li{margin-top:.4rem}
+  @media (max-width:620px){.versus{grid-template-columns:1fr}}
+
+  ul.lede{margin:0; padding-left:1.15rem}
+  ul.lede li + li{margin-top:.55rem}
+
+  figure{margin:0}
+  figcaption{font-size:.8rem; color:var(--text-faint); margin-top:.6rem; font-family:"IBM Plex Mono",monospace}
+  svg{max-width:100%; height:auto; display:block}
+
+  details{border:1px solid var(--rule); border-radius:8px; background:var(--surface); padding:.7rem .95rem}
+  summary{cursor:pointer; font-weight:500; font-size:.92rem}
+  details[open] summary{margin-bottom:.6rem}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+
+<div class="page">
+
+  <header class="mast">
+    <div class="eyebrow">Architecture report &middot; National Drug Authority</div>
+    <h1>Regulatory KPIs from a transactional database, in under a minute</h1>
+    <div class="rule"></div>
+    <p class="standfirst">
+      How MA, CT and GMP application data moves from SQL Server to a governed Iceberg lakehouse:
+      the stack, how change data is captured, how the producer and processor stay in step,
+      what lineage and GDPR controls are in place, and what streaming buys over an hourly batch.
+    </p>
+    <div class="meta">
+      <span>14 September 2026</span>
+      <span>637 applications &middot; 9,062 rows</span>
+      <span>43 indicators &middot; 6 quarters</span>
+      <span>Synthetic data</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="strip wide" style="grid-column:2">
+      <div class="stat good"><span class="v">0</span><span class="k">KPI mismatches vs oracle</span></div>
+      <div class="stat good"><span class="v">15</span><span class="k">Checkpoints, 0 failed</span></div>
+      <div class="stat"><span class="v">15–60<span style="font-size:.9rem">s</span></span><span class="k">Source → dashboard</span></div>
+      <div class="stat"><span class="v">98<span style="font-size:.9rem">ms</span></span><span class="k">Checkpoint duration</span></div>
+    </div>
+    <p style="font-size:.92rem;color:var(--text-muted)">
+      Every figure on this page was measured on the running stack, not estimated. The reconciliation
+      compares Trino's gold KPIs against an independent Python recomputation straight from SQL Server:
+      258 series, zero differences in value, numerator or denominator.
+    </p>
+  </section>
+
+  <!-- 1. STACK -->
+  <section>
+    <div class="sec-head"><span class="sec-num">01</span><h2>The stack</h2></div>
+    <p>
+      Nine services, split between components built for this platform and infrastructure shared with the
+      existing <code>atc-poc</code> project. The transactional database is the system of record; everything
+      downstream is a derived projection of it.
+    </p>
+
+    <figure class="wide">
+      <svg viewBox="0 0 1040 232" role="img" aria-label="Pipeline from SQL Server through Debezium, Kafka, Flink and Iceberg to Trino and the dashboard">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--rule-strong)"/>
+          </marker>
+        </defs>
+        <g font-family="IBM Plex Sans, sans-serif">
+          <!-- stages -->
+          <g>
+            <rect x="8" y="56" width="126" height="70" rx="7" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.6"/>
+            <text x="71" y="80" text-anchor="middle" font-size="12.5" font-weight="600" fill="var(--text)">SQL Server</text>
+            <text x="71" y="97" text-anchor="middle" font-size="10" fill="var(--text-muted)">9 tables + CDC</text>
+            <text x="71" y="112" text-anchor="middle" font-size="9.5" font-family="IBM Plex Mono, monospace" fill="var(--accent)">system of record</text>
+          </g>
+          <g>
+            <rect x="168" y="56" width="118" height="70" rx="7" fill="var(--surface)" stroke="var(--rule-strong)"/>
+            <text x="227" y="80" text-anchor="middle" font-size="12.5" font-weight="600" fill="var(--text)">Debezium</text>
+            <text x="227" y="97" text-anchor="middle" font-size="10" fill="var(--text-muted)">log reader</text>
+            <text x="227" y="112" text-anchor="middle" font-size="9.5" font-family="IBM Plex Mono, monospace" fill="var(--text-faint)">LSN offsets</text>
+          </g>
+          <g>
+            <rect x="320" y="56" width="118" height="70" rx="7" fill="var(--surface)" stroke="var(--rule-strong)"/>
+            <text x="379" y="80" text-anchor="middle" font-size="12.5" font-weight="600" fill="var(--text)">Kafka</text>
+            <text x="379" y="97" text-anchor="middle" font-size="10" fill="var(--text-muted)">9 topics</text>
+            <text x="379" y="112" text-anchor="middle" font-size="9.5" font-family="IBM Plex Mono, monospace" fill="var(--text-faint)">7-day retention</text>
+          </g>
+          <g>
+            <rect x="472" y="56" width="118" height="70" rx="7" fill="var(--surface)" stroke="var(--rule-strong)"/>
+            <text x="531" y="80" text-anchor="middle" font-size="12.5" font-weight="600" fill="var(--text)">Flink</text>
+            <text x="531" y="97" text-anchor="middle" font-size="10" fill="var(--text-muted)">57 operators</text>
+            <text x="531" y="112" text-anchor="middle" font-size="9.5" font-family="IBM Plex Mono, monospace" fill="var(--text-faint)">60s checkpoint</text>
+          </g>
+          <g>
+            <rect x="624" y="34" width="130" height="114" rx="7" fill="var(--accent-wash)" stroke="var(--accent)" stroke-width="1.4"/>
+            <text x="689" y="56" text-anchor="middle" font-size="12.5" font-weight="600" fill="var(--text)">Iceberg</text>
+            <text x="689" y="76" text-anchor="middle" font-size="10" fill="var(--text-muted)">bronze &middot; raw events</text>
+            <text x="689" y="93" text-anchor="middle" font-size="10" fill="var(--text-muted)">silver &middot; upserted</text>
+            <text x="689" y="110" text-anchor="middle" font-size="10" fill="var(--text-muted)">gold &middot; facts + KPIs</text>
+            <text x="689" y="132" text-anchor="middle" font-size="9.5" font-family="IBM Plex Mono, monospace" fill="var(--accent)">42 tables</text>
+          </g>
+          <g>
+            <rect x="788" y="56" width="110" height="70" rx="7" fill="var(--surface)" stroke="var(--rule-strong)"/>
+            <text x="843" y="80" text-anchor="middle" font-size="12.5" font-weight="600" fill="var(--text)">Trino</text>
+            <text x="843" y="97" text-anchor="middle" font-size="10" fill="var(--text-muted)">serving views</text>
+            <text x="843" y="112" text-anchor="middle" font-size="9.5" font-family="IBM Plex Mono, monospace" fill="var(--text-faint)">masked + raw</text>
+          </g>
+          <g>
+            <rect x="932" y="56" width="100" height="70" rx="7" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.6"/>
+            <text x="982" y="80" text-anchor="middle" font-size="12.5" font-weight="600" fill="var(--text)">Dashboard</text>
+            <text x="982" y="97" text-anchor="middle" font-size="10" fill="var(--text-muted)">FastAPI +</text>
+            <text x="982" y="111" text-anchor="middle" font-size="10" fill="var(--text-muted)">Streamlit</text>
+          </g>
+          <!-- arrows -->
+          <g stroke="var(--rule-strong)" stroke-width="1.4" marker-end="url(#ar)" fill="none">
+            <path d="M136,91 L164,91"/><path d="M288,91 L316,91"/><path d="M440,91 L468,91"/>
+            <path d="M592,91 L620,91"/><path d="M756,91 L784,91"/><path d="M900,91 L928,91"/>
+          </g>
+          <!-- latency ruler -->
+          <g font-family="IBM Plex Mono, monospace" font-size="9.5" fill="var(--text-faint)">
+            <text x="150" y="172" text-anchor="middle">&lt;1s</text>
+            <text x="302" y="172" text-anchor="middle">&lt;1s</text>
+            <text x="454" y="172" text-anchor="middle">&lt;1s</text>
+            <text x="606" y="172" text-anchor="middle">≤60s</text>
+            <text x="770" y="172" text-anchor="middle">query</text>
+            <text x="914" y="172" text-anchor="middle">5s poll</text>
+          </g>
+          <line x1="60" y1="186" x2="982" y2="186" stroke="var(--rule)" stroke-width="1"/>
+          <text x="521" y="208" text-anchor="middle" font-size="10.5" fill="var(--text-muted)" font-family="IBM Plex Mono, monospace">
+            end-to-end 15–60s &mdash; dominated by the Iceberg commit, which happens on checkpoint
+          </text>
+        </g>
+      </svg>
+      <figcaption>The checkpoint interval, not the network, sets freshness. Everything else is sub-second.</figcaption>
+    </figure>
+
+    <div class="tw wide">
+      <table>
+        <thead><tr><th>Component</th><th>Version</th><th>Role</th><th>Port</th><th>Owner</th></tr></thead>
+        <tbody>
+          <tr><td><strong>SQL Server</strong></td><td class="t-mono">2022-CU18</td><td>Transactional system of record; 9 tables, CDC enabled</td><td class="t-mono num">14333</td><td>this platform</td></tr>
+          <tr><td><strong>Debezium Connect</strong></td><td class="t-mono">3.0.8.Final</td><td>Reads the transaction log, publishes change events</td><td class="t-mono num">8093</td><td>this platform</td></tr>
+          <tr><td><strong>Redpanda</strong></td><td class="t-mono">v24.2.10</td><td>Kafka-compatible log; 9 topics &times; 3 partitions</td><td class="t-mono num">19092</td><td>this platform</td></tr>
+          <tr><td><strong>Flink</strong></td><td class="t-mono">1.20.1</td><td>Streaming medallion; one job, 57 operators</td><td class="t-mono num">8084</td><td>this platform</td></tr>
+          <tr><td><strong>Iceberg REST</strong></td><td class="t-mono">shared</td><td>Table catalog over MinIO</td><td class="t-mono num">8181</td><td class="t-mono">atc-poc</td></tr>
+          <tr><td><strong>MinIO</strong></td><td class="t-mono">shared</td><td>S3 object storage for table data</td><td class="t-mono num">9000</td><td class="t-mono">atc-poc</td></tr>
+          <tr><td><strong>Trino</strong></td><td class="t-mono">455</td><td>Query engine; serving and masked views</td><td class="t-mono num">8083</td><td class="t-mono">atc-poc</td></tr>
+          <tr><td><strong>Marquez</strong></td><td class="t-mono">0.49.0</td><td>OpenLineage server; lineage graph</td><td class="t-mono num">5000</td><td class="t-mono">atc-poc</td></tr>
+          <tr><td><strong>OpenMetadata</strong></td><td class="t-mono">1.12.8</td><td>Catalog, glossary, lineage UI, GDPR classification</td><td class="t-mono num">8585</td><td class="t-mono">atc-poc</td></tr>
+          <tr><td><strong>Keycloak</strong></td><td class="t-mono">26.7.3</td><td>Identity: stakeholder accounts and group membership</td><td class="t-mono num">8180</td><td>this platform</td></tr>
+          <tr><td><strong>Open Policy Agent</strong></td><td class="t-mono">1.20.2</td><td>Authorization decisions from a Rego policy</td><td class="t-mono num">8182</td><td>this platform</td></tr>
+          <tr><td><strong>Serving API</strong></td><td class="t-mono">FastAPI</td><td>Authenticated read-only dashboard contract</td><td class="t-mono num">8095</td><td>this platform</td></tr>
+          <tr><td><strong>Dashboard</strong></td><td class="t-mono">Streamlit</td><td>Live regulatory KPI dashboard</td><td class="t-mono num">8501</td><td>this platform</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <strong>The transactional database is the only writable surface.</strong> The simulator and the
+      application-intake path write to SQL Server; nothing writes directly to Kafka or the lake. That
+      single rule is what makes the lake reproducible &mdash; it can be rebuilt from the source at any
+      time, and was three times during this build.
+    </div>
+  </section>
+
+  <!-- 2. CDC -->
+  <section>
+    <div class="sec-head"><span class="sec-num">02</span><h2>How change data is captured</h2></div>
+    <p>
+      Capture is <strong>log-based, not query-based</strong>. SQL Server CDC writes every insert and update
+      into capture tables from the transaction log; Debezium reads those and publishes one event per row
+      change. The application is never polled and never carries a <code>last_modified</code> column for
+      the pipeline's benefit.
+    </p>
+    <ul class="lede">
+      <li><strong>Snapshot, then stream.</strong> <code>snapshot.mode=initial</code> reads current table
+        state once (events marked <code>op=r</code>), records the log position, then switches to streaming
+        inserts (<code>op=c</code>), updates (<code>op=u</code>) and deletes (<code>op=d</code>). Verified:
+        9,062 source rows produced exactly 9,062 snapshot messages.</li>
+      <li><strong>Every intermediate state is captured.</strong> An application moves
+        <code>RECEIVED → IN_REVIEW → COMPLETED</code> as three revisions, and all three reach the lake with
+        before/after images. This is the property an hourly batch cannot reproduce &mdash; see section 04.</li>
+      <li><strong>Least privilege.</strong> <code>nda_debezium</code> has <code>SELECT</code> only, plus
+        membership of the CDC gating role. A separate <code>nda_simulator</code> writes; a third principal,
+        <code>nda_erasure</code>, is the only one that may <code>DELETE</code>.</li>
+      <li><strong>Ordering is per key.</strong> Topics are partitioned by <code>record_id</code>, so all
+        revisions of one record land on one partition in order. There is no global ordering guarantee and
+        none is needed.</li>
+    </ul>
+    <div class="note warn">
+      <strong>Two things bit us here and are worth writing down.</strong> Debezium needs
+      <code>SELECT</code> on the whole <code>cdc</code> schema, not just the gated <code>_CT</code> tables
+      &mdash; it reads <code>cdc.captured_columns</code> to build schemas, and without it every snapshot
+      crashes. And deleting Kafka's internal Connect topics while the worker is running puts it into a
+      crash loop; stop the worker first.
+    </div>
+  </section>
+
+  <!-- 3. SYNC -->
+  <section>
+    <div class="sec-head"><span class="sec-num">03</span><h2>Keeping producer and processor in step</h2></div>
+    <p>
+      Nothing in this chain assumes a message is delivered exactly once. Instead, every stage is
+      <em>idempotent</em>, so re-delivery converges to the same state. That is what makes the guarantee
+      hold across restarts &mdash; and this pipeline restarted many times during the build.
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th>Boundary</th><th>Mechanism</th><th>What it guarantees</th></tr></thead>
+        <tbody>
+          <tr><td>Source → Debezium</td><td class="t-mono">LSN offsets in <code>nda.connect.offsets</code></td><td>Resumes at the exact log position after a restart</td></tr>
+          <tr><td>Writer → source</td><td class="t-mono">record_id + monotonic revision</td><td>A replayed state is skipped, never applied twice</td></tr>
+          <tr><td>Intake → source</td><td class="t-mono">application_registry PK</td><td>A duplicate application_id is impossible, not merely unlikely</td></tr>
+          <tr><td>Kafka → Flink</td><td class="t-mono">offsets held in checkpoints</td><td>Rewinds with the operator state, not independently of it</td></tr>
+          <tr><td>Flink internal</td><td class="t-mono">EXACTLY_ONCE, 60s interval</td><td>Aligned barriers; 15 completed, 0 failed</td></tr>
+          <tr><td>Flink → Iceberg</td><td class="t-mono">commit on checkpoint</td><td>A table is never half-written; readers see whole commits</td></tr>
+          <tr><td>Upsert key</td><td class="t-mono">(record_id, cohort_month)</td><td>Re-delivery overwrites rather than duplicates</td></tr>
+          <tr><td>Duplicate events</td><td class="t-mono">cdc-events-duplicate = true</td><td>Flink normalises repeated changelog rows</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      <strong>How we check it rather than assume it.</strong> Two independent reconciliations run against
+      the live system: source row counts against Kafka high-watermarks per topic (9,062 = 9,062), and
+      Trino's gold KPIs against a Python recomputation from SQL Server (258 series, 0 differences). The
+      second is the strong one &mdash; it re-derives every indicator by a different code path and compares
+      values, numerators and denominators.
+    </p>
+    <div class="note">
+      <strong>Honest limit: cross-table consistency is eventual.</strong> Each Iceberg table commits on its
+      own checkpoint, so a query spanning nine tables can catch them at slightly different moments. The
+      serving API pins each table to a specific snapshot id and returns those ids in
+      <code>_meta.snapshots</code>, so a report is reproducible and says so, rather than claiming an atomicity
+      it does not have.
+    </div>
+  </section>
+
+  <!-- 4. STREAMING VS BATCH -->
+  <section>
+    <div class="sec-head"><span class="sec-num">04</span><h2>Streaming versus an hourly batch</h2></div>
+    <p>
+      The honest framing: for <em>these</em> KPIs, hourly batch would be cheaper, simpler and almost as
+      fresh. Regulatory turnaround times are measured in weeks; nobody decides anything differently
+      because a number is 45 seconds old instead of 45 minutes. Streaming earns its place here for one
+      specific reason, and it is not latency.
+    </p>
+
+    <div class="versus">
+      <div>
+        <h3>CDC streaming <span class="pill live">in use</span></h3>
+        <ul>
+          <li><strong>Freshness 15–60s</strong>, bounded by the checkpoint interval.</li>
+          <li><strong>Captures every state transition</strong> — queue time, rework, how long work sat in each status.</li>
+          <li><strong>Near-zero source load</strong>: reads the log, never queries the tables.</li>
+          <li>Cost is <strong>always-on</strong>: ~5.6 GB RAM for Flink + Kafka + Connect, running whether or not data arrives.</li>
+          <li>Failure recovery needs checkpoint and state reasoning; a bad deploy can corrupt state.</li>
+          <li>Backfill is bounded by <strong>Kafka retention (7 days)</strong>; older replay means re-snapshotting.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Hourly batch <span class="pill warn">not chosen</span></h3>
+        <ul>
+          <li><strong>Freshness up to 60 min</strong> — perfectly adequate for these indicators.</li>
+          <li><strong>Sees only the latest row state.</strong> An application that went RECEIVED → IN_REVIEW → COMPLETED inside one hour arrives as "COMPLETED", and the intermediate durations are gone forever.</li>
+          <li>Repeated extraction queries <strong>load the transactional database</strong> during business hours.</li>
+          <li>Cost is <strong>burst</strong>: compute only while the job runs. Materially cheaper.</li>
+          <li>Failure recovery is trivial: rerun the window.</li>
+          <li>Backfill is unlimited — rerun any window straight from the source.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="note">
+      <strong>The deciding factor is measurement, not speed.</strong> The bottleneck analysis in this
+      dashboard reports <code>touch_days</code> and <code>wait_days</code> per process step — how long work
+      was actively handled versus sitting in a queue. Those numbers only exist because CDC records each
+      status change as its own event with its own timestamp. An hourly snapshot would show the same final
+      turnaround totals but could never decompose them, and the "where is the delay?" question is the one
+      the regulator actually wants answered.
+    </div>
+    <p style="font-size:.93rem;color:var(--text-muted)">
+      If that decomposition were dropped from scope, hourly batch would be the correct
+      choice for this workload and would remove roughly two-thirds of the moving parts.
+    </p>
+  </section>
+
+  <!-- 5. LINEAGE -->
+  <section>
+    <div class="sec-head"><span class="sec-num">05</span><h2>Lineage</h2></div>
+    <p>
+      Implemented with <strong>OpenLineage</strong>, the vendor-neutral standard, and published to
+      <em>both</em> servers from one graph definition: Marquez for the raw events, and OpenMetadata for the
+      catalog UI, where lineage sits beside the glossary and the GDPR classification. Because the graph is
+      derived from the pipeline's own contract, neither copy can drift from the code.
+    </p>
+    <div class="strip">
+      <div class="stat"><span class="v">42</span><span class="k">Jobs (OpenLineage)</span></div>
+      <div class="stat"><span class="v">54</span><span class="k">Edges in OpenMetadata</span></div>
+      <div class="stat"><span class="v">67</span><span class="k">Catalog entities ingested</span></div>
+    </div>
+    <p style="font-size:.93rem;color:var(--text-muted)">
+      Catalog ingestion is real rather than hand-authored: OpenMetadata connectors read 9 SQL Server
+      tables, 9 Kafka topics and 49 Trino lake tables and views directly from the systems themselves.
+    </p>
+    <p>
+      Every hop is a job, so the graph traverses in both directions. Asking "what feeds
+      <code>kpi_quarterly</code>?" walks back through Trino, Flink, Kafka and Debezium to the exact SQL
+      Server table; asking the reverse of a source table shows every report that would break if you changed
+      it.
+    </p>
+    <details>
+      <summary>Upstream trace from the serving view to the system of record</summary>
+      <pre class="mono" style="font-size:.78rem;overflow-x:auto;margin:0;color:var(--text-muted)">nda_gold.kpi_quarterly
+  job trino.kpi_quarterly
+    nda_gold.fact_ct_kpi_measurements
+      job flink.kpi.ct
+        nda_silver.ct_activities
+          job flink.silver.ct_activities
+            nda.NDAStreaming.dbo.ct_activities   (Kafka)
+              job debezium.cdc.ct_activities
+                NDAStreaming.dbo.ct_activities   (SQL Server)</pre>
+    </details>
+    <ul class="lede">
+      <li><strong>Column-level lineage</strong> is attached where a transformation is non-trivial:
+        <code>measured_value</code> declares that it derives from <code>completed_at</code>,
+        <code>due_at</code>, <code>received_at</code> and <code>outcome</code> through a per-indicator
+        predicate.</li>
+      <li><strong>Derived from one contract.</strong> Dataset names come from the same module the pipeline
+        uses, so a new table cannot appear in the lake and be missing from lineage &mdash; a test asserts
+        the graph has no dataset that is consumed but never produced.</li>
+    </ul>
+  </section>
+
+  <!-- 6. GOVERNANCE -->
+  <section>
+    <div class="sec-head"><span class="sec-num">06</span><h2>GDPR governance</h2></div>
+    <p>
+      Classification lives in code, not a spreadsheet, so every control derives from one declaration and
+      drift is detectable. The audit fails if any column reaches the lake unclassified. The same
+      declaration is pushed into the catalog, so what the business reads in OpenMetadata is what the
+      pipeline enforces: <strong>111 columns across 28 tables</strong> carry <code>PII.Sensitive</code>,
+      <code>PII.NonSensitive</code> or <code>PersonalData.Personal</code>, and each lake table is tagged
+      with its medallion layer.
+    </p>
+    <div class="tw wide">
+      <table>
+        <thead><tr><th>Article</th><th>Control</th><th>How it is enforced</th><th>State</th></tr></thead>
+        <tbody>
+          <tr><td class="t-mono">5(1)(c)</td><td>Data minimisation</td><td>The CDC projection carries no applicant names or contact details; the only identity in the fact stream is a pseudonymous <code>entity_id</code></td><td><span class="pill live">enforced</span></td></tr>
+          <tr><td class="t-mono">5(1)(e)</td><td>Storage limitation</td><td>Retention per layer — bronze 30d, silver 2y, gold 7y — enforced by Iceberg snapshot expiry</td><td><span class="pill live">enforced</span></td></tr>
+          <tr><td class="t-mono">15</td><td>Right of access</td><td><code>subject_access()</code> assembles every row held about one entity across all layers</td><td><span class="pill live">tested</span></td></tr>
+          <tr><td class="t-mono">17</td><td>Right to erasure</td><td>Delete at source → CDC carries it through bronze/silver/gold → expire snapshots</td><td><span class="pill live">tested</span></td></tr>
+          <tr><td class="t-mono">25</td><td>Protection by design</td><td>Masked views are the default analyst surface; identifiers are SHA-256 hashed, direct identifiers nulled</td><td><span class="pill live">enforced</span></td></tr>
+          <tr><td class="t-mono">30</td><td>Records of processing</td><td><code>processing_record()</code> emits the Art. 30 register from the same declaration</td><td><span class="pill live">generated</span></td></tr>
+          <tr><td class="t-mono">32</td><td>Security</td><td>Three separate SQL principals; direct identifiers isolated in a separately erasable dimension</td><td><span class="pill live">enforced</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:1.6rem">Erasure, verified end to end</h3>
+    <p>
+      A subject holding 2 applications and 65 rows across seven tables was erased: 32 source rows deleted,
+      and within 30 seconds CDC had carried the deletions through every silver and gold table. Subject
+      access then returned nothing.
+    </p>
+    <div class="note risk">
+      <strong>The trap in a lakehouse: a delete is not an erasure.</strong> Iceberg keeps snapshots, so a
+      deleted row stays readable through time travel until snapshots expire. Erasure is only complete after
+      <code>expire_snapshots</code> runs over every affected table, and the tooling says so in its output
+      rather than reporting success early. The second trap is direction: deleting in the lake alone is
+      undone by the next CDC snapshot — the source must be deleted first.
+    </div>
+    <p>
+      Masking keeps identifiers <em>joinable</em> without exposing them: the same entity hashes to the same
+      value, so cohort analysis still works on the masked view, but no analyst sees an applicant identity.
+    </p>
+  </section>
+
+  <!-- 7. ASYNC ENRICHMENT -->
+  <section>
+    <div class="sec-head"><span class="sec-num">07</span><h2>Asynchronous enrichment</h2></div>
+    <p>
+      Some report attributes — an applicant's legal name, country, registry standing — come from a slow
+      external registry. Putting that call in the streaming path would let a third party's latency stall a
+      Flink checkpoint. So it runs out of band.
+    </p>
+    <div class="strip">
+      <div class="stat"><span class="v">321</span><span class="k">Entities per pass</span></div>
+      <div class="stat"><span class="v">11.6<span style="font-size:.9rem">s</span></span><span class="k">Wall clock, concurrency 24</span></div>
+      <div class="stat good"><span class="v">16&times;</span><span class="k">Faster than sequential</span></div>
+      <div class="stat"><span class="v">20</span><span class="k">Failures recorded, not dropped</span></div>
+    </div>
+    <p>The pattern, and the four properties that make it safe to depend on:</p>
+    <ul class="lede">
+      <li><strong>Bounded concurrency.</strong> A semaphore caps in-flight calls, so the enricher cannot
+        overwhelm the registry or its own event loop.</li>
+      <li><strong>Per-call timeout and retry with backoff.</strong> One slow entity delays only itself.</li>
+      <li><strong>Failure is a row, not a gap.</strong> An unreachable entity is written with
+        <code>status='unavailable'</code>. You can see what is missing and why, and retry it later.</li>
+      <li><strong>Reports LEFT JOIN the dimension.</strong> A pending entity reads as <code>NULL</code> with
+        a reason. The report never blocks waiting for enrichment, and never invents a value.</li>
+    </ul>
+    <p style="font-size:.93rem;color:var(--text-muted)">
+      Of 639 applications, 599 are enriched and 40 read as pending — the report renders correctly either
+      way. If enrichment ever needs to be inline rather than out of band, the streaming equivalent is
+      Flink's async I/O operator, which applies the same bounded-concurrency and timeout discipline inside
+      the job rather than beside it.
+    </p>
+  </section>
+
+  <!-- 8. SIMULATION -->
+  <section>
+    <div class="sec-head"><span class="sec-num">08</span><h2>How the simulation behaves</h2></div>
+    <p>
+      The simulator backfills history on an accelerated clock, then <strong>hands over to real time</strong>
+      once it reaches today. After that, applications arrive on real dates at a realistic cadence rather
+      than the simulation racing into the future.
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th>Property</th><th>Measured</th></tr></thead>
+        <tbody>
+          <tr><td>Applications</td><td class="num">637 across MA, CT and GMP</td></tr>
+          <tr><td>History</td><td class="num">2025-04-01 → 2026-09-13 (6 reporting quarters)</td></tr>
+          <tr><td>Open backlog</td><td class="num">119 applications still in flight</td></tr>
+          <tr><td>SLA compliance</td><td class="num">85.9% on time — plausible, neither 0% nor 100%</td></tr>
+          <tr><td>Future-dated records</td><td class="num">0</td></tr>
+          <tr><td>Duplicate application ids</td><td class="num">0 — registry count matches applications exactly</td></tr>
+          <tr><td>Negative durations / reversed dates</td><td class="num">0</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      <strong>Duplicate protection.</strong> Nine per-table primary keys cannot express uniqueness
+      <em>across</em> processes, so an intake registry holds every application id under a single primary
+      key. A submission checks it first for a friendly rejection; the primary key is what makes a duplicate
+      actually impossible under concurrency. Tested against re-submission, cross-process collision, and
+      collision with a simulator-generated id — all rejected.
+    </p>
+  </section>
+
+  <!-- 9. ACCESS CONTROL -->
+  <section>
+    <div class="sec-head"><span class="sec-num">09</span><h2>Who may see what</h2></div>
+    <p>
+      Identity and authorization are deliberately separate services.
+      <strong>Keycloak</strong> answers only <em>who you are and which group you are in</em>;
+      <strong>Open Policy Agent</strong> answers only <em>what that group may do</em>. Both are
+      generated by <strong>Terraform</strong> from a single map in <code>infra/variables.tf</code>,
+      so a group cannot exist in identity without a matching policy, or gain data access without an
+      identity.
+    </p>
+    <div class="tw wide">
+      <table>
+        <thead><tr><th>Stakeholder group</th><th>Dashboard</th><th>Indicators</th><th>Exportable layers</th><th>Row cap</th></tr></thead>
+        <tbody>
+          <tr><td><strong>data-engineering</strong><br><span class="t-mono" style="color:var(--text-faint)">2 accounts</span></td><td>Full — MA, CT, GMP</td><td class="num">all 43</td><td>bronze, silver, gold <span class="t-mono">(30 tables)</span></td><td class="num">1,000,000</td></tr>
+          <tr><td><strong>ma-analysts</strong><br><span class="t-mono" style="color:var(--text-faint)">2 accounts</span></td><td>MA only</td><td class="num">7</td><td>MA silver + gold <span class="t-mono">(7 tables)</span></td><td class="num">250,000</td></tr>
+          <tr><td><strong>ct-analysts</strong><br><span class="t-mono" style="color:var(--text-faint)">2 accounts</span></td><td>CT only</td><td class="num">8</td><td>CT silver + gold</td><td class="num">250,000</td></tr>
+          <tr><td><strong>gmp-analysts</strong><br><span class="t-mono" style="color:var(--text-faint)">2 accounts</span></td><td>GMP only</td><td class="num">28</td><td>GMP silver + gold</td><td class="num">250,000</td></tr>
+          <tr><td><strong>public</strong><br><span class="t-mono" style="color:var(--text-faint)">1 account</span></td><td>Indicator tiles only</td><td class="num">2 per process</td><td class="t-mono">none</td><td class="num">0</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3 style="margin-top:1.6rem">Which two indicators the public sees, and why</h3>
+    <p>
+      Service-delivery <em>timeliness</em> only: new applications evaluated on time and decisions
+      granted within 90 days for MA; new trials evaluated on time and registry submissions on time for
+      CT; facilities inspected on time and reports published on time for GMP.
+    </p>
+    <div class="note">
+      <strong>Compliance and CAPA indicators are deliberately withheld.</strong>
+      <code>pct_facilities_compliant</code>, <code>pct_gcp_compliant</code> and the CAPA measures report
+      <em>failure</em> rates over small cohorts of named facilities and trials. Published quarterly at
+      this granularity they invite re-identification of who failed an inspection, which is a
+      reputational and legal exposure the timeliness measures simply do not carry. Timeliness says how
+      well the regulator performed; compliance says who broke the rules.
+    </div>
+    <h3 style="margin-top:1.6rem">Where it is enforced</h3>
+    <ul class="lede">
+      <li><strong>The API is the enforcement point, not the UI.</strong> The dashboard renders only the
+        tabs the entitlement allows, but every export re-checks with OPA, so a tampered browser gains
+        nothing.</li>
+      <li><strong>Tokens are verified against the realm's public keys</strong>, not by calling
+        introspection. Tokens live 10 minutes, which bounds how long a revoked session stays usable.</li>
+      <li><strong>An unreachable policy engine denies.</strong> OPA failing closed is the only safe
+        default; an authorization service that fails open is worse than none.</li>
+      <li><strong>Unknown groups get nothing.</strong> A group the policy does not recognise contributes
+        no entitlement rather than being treated as a wildcard.</li>
+    </ul>
+    <div class="note warn">
+      <strong>Not yet enforced at the query engine.</strong> Trino is shared with the atc-poc project,
+      and its access control is engine-wide, so switching it to OPA would also govern their catalogs.
+      Anyone holding Trino credentials can therefore still query any table directly. Closing that gap
+      means either a dedicated Trino for NDA or an agreed cutover with that project.
+    </div>
+  </section>
+
+  <!-- 10. MULTI-PIPELINE -->
+  <section>
+    <div class="sec-head"><span class="sec-num">10</span><h2>Running more than one pipeline</h2></div>
+    <p>
+      No second pipeline should rebuild Spark, Trino or MinIO. This one proves the point:
+      <strong>the NDA stack builds zero images</strong> &mdash; every service runs an upstream tag, and
+      it consumes the object store, table catalog, query engine, lineage server and catalog that
+      already existed, by DNS name on a shared Docker network.
+    </p>
+    <div class="tw wide">
+      <table>
+        <thead><tr><th>Tier</th><th>Services</th><th>Instances</th><th>How pipelines are separated</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Shared platform</strong><br><span class="t-mono" style="color:var(--text-faint)">always one</span></td>
+            <td>MinIO, Iceberg REST catalog, Trino, Marquez, OpenMetadata, Airflow, Keycloak</td>
+            <td class="t-mono num">1</td>
+            <td>Namespaces, schemas, warehouse prefixes, realms and roles &mdash; not separate servers</td>
+          </tr>
+          <tr>
+            <td><strong>Shared runtime</strong><br><span class="t-mono" style="color:var(--text-faint)">one cluster, many tenants</span></td>
+            <td>Kafka, Debezium Connect, Flink</td>
+            <td class="t-mono num">1</td>
+            <td>Topic prefixes, one connector per source, one Flink job per pipeline on a session cluster</td>
+          </tr>
+          <tr>
+            <td><strong>Pipeline-specific</strong><br><span class="t-mono" style="color:var(--text-faint)">unavoidable</span></td>
+            <td>The source system itself (here, SQL Server)</td>
+            <td class="t-mono num">N</td>
+            <td>Each pipeline captures a different system of record; nothing to share</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <strong>The mechanism is three lines of Compose.</strong> Every pipeline joins the same external
+      network instead of creating its own, and then addresses shared services by their alias
+      (<code>minio:9000</code>, <code>iceberg-rest:8181</code>, <code>trino:8080</code>):
+      <pre class="mono" style="font-size:.8rem;overflow-x:auto;margin:.6rem 0 0;color:var(--text-muted)">networks:
+  shared:
+    external: true
+    name: ${SHARED_NETWORK:-atc-poc_pipeline_net}</pre>
+    </div>
+    <h3 style="margin-top:1.6rem">What a second pipeline actually costs</h3>
+    <ul class="lede">
+      <li><strong>New containers:</strong> only its source database, if it has one. Kafka, Connect and
+        Flink should take another tenant rather than another cluster &mdash; a topic prefix, a connector,
+        a job.</li>
+      <li><strong>New images to build:</strong> none. Everything here is an upstream tag.</li>
+      <li><strong>New isolation:</strong> an Iceberg namespace trio, a Trino schema set, a Keycloak
+        group, an OPA entitlement, an S3 prefix. All configuration, no infrastructure.</li>
+    </ul>
+    <div class="note warn">
+      <strong>Where this deployment is not yet that.</strong> Kafka, Connect and Flink currently sit in
+      the NDA Compose project, so a second pipeline would be tempted to start its own. They belong in
+      the shared platform project and should be promoted there before pipeline two, not after &mdash;
+      moving a broker with live topics is far more disruptive than starting it in the right place.
+      Note also that the biggest images on this host are two custom Spark builds totalling
+      <strong>12.1 GB</strong> for what is one engine, alongside three separate Postgres instances
+      backing Airflow, Marquez and OpenMetadata. That is where the duplication actually is.
+    </div>
+  </section>
+
+  <!-- 11. GAPS -->
+  <section>
+    <div class="sec-head"><span class="sec-num">11</span><h2>Gaps and risks</h2></div>
+    <p>What is not done, or not production-grade, stated plainly.</p>
+    <div class="tw wide">
+      <table>
+        <thead><tr><th>Gap</th><th>Impact</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Flink loses its job on restart</strong></td><td class="t-mono"><span class="pill risk">high</span> Happened today — a Docker restart left the pipeline silently dead</td><td>Run in application mode with HA, or have the operations DAG resubmit from the last savepoint</td></tr>
+          <tr><td><strong>Single Kafka broker, RF=1</strong></td><td class="t-mono"><span class="pill risk">high</span> Broker loss means data loss within the retention window</td><td>Three brokers, replication factor 3</td></tr>
+          <tr><td><strong>MinIO root credentials in <code>.env</code></strong></td><td class="t-mono"><span class="pill risk">high</span> Full object-store access, not scoped to this platform</td><td>Scoped service account limited to the NDA warehouse prefix</td></tr>
+          <tr><td><strong>7-day Kafka retention</strong></td><td class="t-mono"><span class="pill warn">medium</span> Bounds how far the lake can be rebuilt without re-snapshotting</td><td>Longer retention, or a documented re-snapshot runbook</td></tr>
+          <tr><td><strong>Catalog ingestion is manual</strong></td><td class="t-mono"><span class="pill warn">medium</span> OpenMetadata runs, but ingestion and classification are triggered by hand, so the catalog drifts as schemas change</td><td>Schedule the three ingestion workflows plus <code>governance classify</code> on the existing Airflow</td></tr>
+          <tr><td><strong>Query-log lineage unavailable</strong></td><td class="t-mono"><span class="pill warn">low</span> The read-only CDC principal lacks <code>VIEW SERVER PERFORMANCE STATE</code>, so query logs cannot be mined</td><td>Accept it — declared lineage already covers every hop — or use a separate profiling principal</td></tr>
+          <tr><td><strong>Gold duplicates silver</strong></td><td class="t-mono"><span class="pill warn">medium</span> 9 of 39 sinks write an identical copy — a real cause of the memory pressure</td><td>Make gold facts views over silver, or curate them so they differ</td></tr>
+          <tr><td><strong>API and dashboard are bare host processes</strong></td><td class="t-mono"><span class="pill warn">medium</span> Do not survive a reboot</td><td>Supervise them, or containerise</td></tr>
+          <tr><td><strong>RBAC stops at the API</strong></td><td class="t-mono"><span class="pill risk">high</span> Direct Trino credentials bypass every stakeholder rule, because Trino is shared with atc-poc</td><td>A dedicated Trino for NDA with the OPA authorizer enabled</td></tr>
+          <tr><td><strong>SLA targets are assumptions</strong></td><td class="t-mono"><span class="pill warn">medium</span> Every threshold is invented, not agreed</td><td>Regulatory sign-off before any figure is published</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note warn">
+      <strong>Capacity was the binding constraint.</strong> The medallion job runs 57 operators in one
+      TaskManager, and each Iceberg writer buffers on the Java heap. It OOM-crashed repeatedly until
+      managed memory was cut from 40% to 10% — this job's keyed state is tiny, and the default reservation
+      was starving the part that matters. Parquet row groups were also cut from 128 MB to 8 MB and S3
+      multipart buffers from 32 MB to 5 MB. The Docker VM has since been raised from 15.5 to 21.5 GB via
+      <code>.wslconfig</code>, which is what lets the pipeline and the full catalog run together:
+      16.3 GB in use, 5.2 GB free. The host has 31.8 GB, so roughly 9 GB is left for Windows &mdash;
+      workable, but not generous.
+    </div>
+  </section>
+
+  <section style="border-bottom:1px solid var(--rule)">
+    <div class="sec-head"><span class="sec-num">12</span><h2>What was verified</h2></div>
+    <ul class="lede">
+      <li><span class="pill live">pass</span> &nbsp;258 KPI series reconcile <strong>exactly</strong> against an independent recomputation — value, numerator and denominator.</li>
+      <li><span class="pill live">pass</span> &nbsp;9,062 source rows = 9,062 Kafka messages, per topic.</li>
+      <li><span class="pill live">pass</span> &nbsp;All 43 indicators populated: MA 7/7, CT 8/8, GMP 28/28.</li>
+      <li><span class="pill live">pass</span> &nbsp;Zero rows quarantined; percentages within 0–100; numerator never exceeds denominator.</li>
+      <li><span class="pill live">pass</span> &nbsp;GDPR erasure propagated to every layer within 30 seconds.</li>
+      <li><span class="pill live">pass</span> &nbsp;Duplicate application ids rejected on all three collision paths.</li>
+      <li><span class="pill live">pass</span> &nbsp;15 unit and property tests, including lineage-graph connectivity and classification coverage.</li>
+      <li><span class="pill live">pass</span> &nbsp;API refuses unauthenticated access; dashboard serves live data end to end.</li>
+      <li><span class="pill live">pass</span> &nbsp;Lineage traverses both ways in OpenMetadata: <code>kpi_quarterly</code> resolves back through Flink and Kafka to the SQL Server tables, and a source table resolves forward to every fact and quarantine table it feeds.</li>
+      <li><span class="pill live">pass</span> &nbsp;The pipeline survived a full Docker restart and still reconciles exactly — after the Flink job was resubmitted by hand, which is the first gap above.</li>
+      <li><span class="pill live">pass</span> &nbsp;All 9 stakeholder accounts sign in and receive exactly their declared entitlement; a wrong password and a missing token are both refused.</li>
+      <li><span class="pill live">pass</span> &nbsp;10 export rules enforced: an MA analyst is refused bronze and refused CT gold; the public account is refused every export; engineers get all three layers.</li>
+      <li><span class="pill live">pass</span> &nbsp;Scoped dashboards return MA 7 / CT 0 / GMP 0 for an MA analyst, and exactly 2 indicators per process for the public account.</li>
+    </ul>
+  </section>
+
+  <p style="font-size:.8rem;color:var(--text-faint);padding-top:1.6rem;font-family:'IBM Plex Mono',monospace">
+    All data synthetic. SLA thresholds are simulation settings pending regulatory approval.
+  </p>
+
+</div>

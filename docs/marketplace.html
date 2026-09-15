@@ -1,0 +1,550 @@
+<title>Governed Data Marketplace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --bg:#F5F8F6; --surface:#FFFFFF; --surface-2:#EDF2EE;
+    --text:#0E1A15; --text-muted:#55675E; --text-faint:#7C8C84;
+    --rule:#D8E2DB; --rule-strong:#B9C8BF;
+    --accent:#0B5136; --accent-2:#12805A; --accent-wash:#E4EFE8;
+    --warn:#8A5D0F; --warn-wash:#F6EEDC;
+    --risk:#8C3A2E; --risk-wash:#F7E7E3;
+    --ok:#11674A;
+    --measure:70ch;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0C1310; --surface:#131C18; --surface-2:#18231E;
+      --text:#E6EDE8; --text-muted:#9DB0A6; --text-faint:#7A8D83;
+      --rule:#243128; --rule-strong:#33453A;
+      --accent:#5FCB9B; --accent-2:#7FD9B0; --accent-wash:#15271F;
+      --warn:#D8A54E; --warn-wash:#261E10;
+      --risk:#E08573; --risk-wash:#2A1713;
+      --ok:#5FCB9B;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0C1310; --surface:#131C18; --surface-2:#18231E;
+    --text:#E6EDE8; --text-muted:#9DB0A6; --text-faint:#7A8D83;
+    --rule:#243128; --rule-strong:#33453A;
+    --accent:#5FCB9B; --accent-2:#7FD9B0; --accent-wash:#15271F;
+    --warn:#D8A54E; --warn-wash:#261E10;
+    --risk:#E08573; --risk-wash:#2A1713;
+    --ok:#5FCB9B;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg); color:var(--text);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+    font-size:16.5px; line-height:1.65; margin:0; -webkit-font-smoothing:antialiased}
+  .page{display:grid; grid-template-columns:minmax(18px,1fr) min(var(--measure),100%) minmax(18px,1fr); padding-block:0 5rem}
+  .page > *{grid-column:2}
+  .wide{grid-column:1/-1; justify-self:center; width:min(1120px,calc(100% - 36px))}
+  h1,h2,h3{font-family:Newsreader,Georgia,serif; font-weight:600; text-wrap:balance; margin:0}
+  h1{font-size:clamp(2.1rem,5.2vw,3rem); line-height:1.1; letter-spacing:-.015em}
+  h2{font-size:clamp(1.4rem,3.2vw,1.85rem); line-height:1.2; letter-spacing:-.01em}
+  h3{font-size:1.1rem; line-height:1.3; font-weight:600}
+  p{margin:0}
+  code,.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace; font-size:.87em}
+  code{background:var(--surface-2); padding:.1em .38em; border-radius:4px}
+  pre{background:var(--surface); border:1px solid var(--rule); border-radius:8px;
+    padding:.9rem 1rem; overflow-x:auto; font-family:"IBM Plex Mono",monospace;
+    font-size:.79rem; line-height:1.55; margin:0; color:var(--text-muted)}
+  .eyebrow{font-family:"IBM Plex Mono",monospace; font-size:.7rem; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--text-faint); font-weight:500}
+  header.mast{padding-block:3.5rem 2rem; display:flex; flex-direction:column; gap:1rem}
+  .mast .rule{height:3px; width:64px; background:var(--accent); border-radius:2px}
+  .standfirst{font-size:1.12rem; color:var(--text-muted); max-width:62ch}
+  .meta{display:flex; flex-wrap:wrap; gap:.4rem 1.4rem; padding-top:.75rem;
+    border-top:1px solid var(--rule); font-size:.82rem; color:var(--text-faint);
+    font-family:"IBM Plex Mono",monospace}
+  section{padding-block:2.4rem; border-top:1px solid var(--rule)}
+  section > * + *{margin-top:1.1rem}
+  .sec-head{display:flex; gap:.9rem; align-items:baseline}
+  .sec-num{font-family:"IBM Plex Mono",monospace; font-size:.78rem; color:var(--accent);
+    font-weight:500; padding-top:.35rem; flex:none}
+  .strip{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1px;
+    background:var(--rule); border:1px solid var(--rule); border-radius:8px; overflow:hidden}
+  .stat{background:var(--surface); padding:.95rem 1.05rem; display:flex; flex-direction:column; gap:.2rem}
+  .stat .v{font-family:Newsreader,serif; font-size:1.7rem; font-weight:600; line-height:1; font-variant-numeric:tabular-nums}
+  .stat .k{font-size:.74rem; color:var(--text-faint); letter-spacing:.04em}
+  .stat.good .v{color:var(--ok)}
+  .tw{overflow-x:auto; border:1px solid var(--rule); border-radius:8px; background:var(--surface)}
+  table{border-collapse:collapse; width:100%; font-size:.87rem}
+  th,td{text-align:left; padding:.6rem .8rem; border-bottom:1px solid var(--rule); vertical-align:top}
+  thead th{font-family:"IBM Plex Mono",monospace; font-size:.69rem; text-transform:uppercase;
+    letter-spacing:.09em; color:var(--text-faint); font-weight:500; background:var(--surface-2); white-space:nowrap}
+  tbody tr:last-child td{border-bottom:0}
+  td.num{font-variant-numeric:tabular-nums; white-space:nowrap}
+  .t-mono{font-family:"IBM Plex Mono",monospace; font-size:.81rem}
+  .pill{display:inline-block; font-family:"IBM Plex Mono",monospace; font-size:.67rem;
+    padding:.14em .5em; border-radius:4px; white-space:nowrap}
+  .pill.live{background:var(--accent-wash); color:var(--accent)}
+  .pill.warn{background:var(--warn-wash); color:var(--warn)}
+  .pill.risk{background:var(--risk-wash); color:var(--risk)}
+  .note{border-left:3px solid var(--accent); background:var(--surface); padding:.95rem 1.1rem;
+    border-radius:0 8px 8px 0; font-size:.93rem}
+  .note.warn{border-left-color:var(--warn)}
+  .note.risk{border-left-color:var(--risk)}
+  ul.lede{margin:0; padding-left:1.15rem}
+  ul.lede li + li{margin-top:.5rem}
+  figure{margin:0}
+  figcaption{font-size:.79rem; color:var(--text-faint); margin-top:.6rem; font-family:"IBM Plex Mono",monospace}
+  svg{max-width:100%; height:auto; display:block}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="page">
+  <header class="mast">
+    <div class="eyebrow">Design &amp; implementation &middot; Lakehouse data marketplace</div>
+    <h1>A marketplace where business users never meet a fact table</h1>
+    <div class="rule"></div>
+    <p class="standfirst">
+      Certified business views over Iceberg, served by Trino, catalogued in OpenMetadata and
+      defined once in dbt semantic models. Physical tables stay hidden and read-only; personal
+      sandboxes cost almost nothing; every query is audited.
+    </p>
+    <div class="meta">
+      <span>14 September 2026</span>
+      <span>5 products &middot; 19 metrics</span>
+      <span>4.6 KiB over 235 MiB</span>
+      <span>Implemented and measured</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="strip wide" style="grid-column:2">
+      <div class="stat good"><span class="v">0.002<span style="font-size:.9rem">%</span></span><span class="k">Storage overhead</span></div>
+      <div class="stat good"><span class="v">5</span><span class="k">Certified views live</span></div>
+      <div class="stat good"><span class="v">19</span><span class="k">Metrics, queryable</span></div>
+      <div class="stat good"><span class="v">10/10</span><span class="k">RBAC rules enforced</span></div>
+    </div>
+    <p style="font-size:.92rem;color:var(--text-muted)">
+      Everything below is running against the existing lakehouse, not sketched. The numbers were
+      measured on the deployed stack; where something is designed but not yet built, it says so.
+    </p>
+  </section>
+
+  <!-- 1. ARCHITECTURE -->
+  <section>
+    <div class="sec-head"><span class="sec-num">01</span><h2>Architecture</h2></div>
+    <figure class="wide">
+      <svg viewBox="0 0 1100 430" role="img" aria-label="Marketplace architecture from clients through Trino to Iceberg storage">
+        <defs>
+          <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--rule-strong)"/>
+          </marker>
+        </defs>
+        <g font-family="IBM Plex Sans, sans-serif">
+          <!-- clients -->
+          <text x="20" y="26" font-size="10.5" font-family="IBM Plex Mono, monospace" fill="var(--text-faint)">CLIENTS</text>
+          <g>
+            <rect x="16" y="36" width="1068" height="54" rx="8" fill="var(--surface)" stroke="var(--rule-strong)"/>
+            <text x="120" y="60" text-anchor="middle" font-size="12" fill="var(--text)">KPI Web UI</text>
+            <text x="120" y="76" text-anchor="middle" font-size="9.5" fill="var(--text-muted)">REST + SSO</text>
+            <text x="360" y="60" text-anchor="middle" font-size="12" fill="var(--text)">VS Code &middot; Jupyter</text>
+            <text x="360" y="76" text-anchor="middle" font-size="9.5" fill="var(--text-muted)">Python / trino driver</text>
+            <text x="620" y="60" text-anchor="middle" font-size="12" fill="var(--text)">DBeaver</text>
+            <text x="620" y="76" text-anchor="middle" font-size="9.5" fill="var(--text-muted)">JDBC</text>
+            <text x="880" y="60" text-anchor="middle" font-size="12" fill="var(--text)">OpenMetadata UI</text>
+            <text x="880" y="76" text-anchor="middle" font-size="9.5" fill="var(--text-muted)">discovery &amp; search</text>
+          </g>
+          <!-- sso -->
+          <g>
+            <rect x="380" y="112" width="340" height="40" rx="8" fill="var(--accent-wash)" stroke="var(--accent)" stroke-width="1.4"/>
+            <text x="550" y="137" text-anchor="middle" font-size="12" font-weight="600" fill="var(--text)">Keycloak &mdash; OIDC single sign-on</text>
+          </g>
+          <path d="M550,92 L550,110" stroke="var(--rule-strong)" stroke-width="1.4" marker-end="url(#a)" fill="none"/>
+          <!-- trino -->
+          <g>
+            <rect x="16" y="174" width="1068" height="96" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.6"/>
+            <text x="34" y="196" font-size="12.5" font-weight="600" fill="var(--text)">Trino &mdash; the only query engine</text>
+            <rect x="34" y="208" width="240" height="48" rx="6" fill="var(--accent-wash)" stroke="var(--accent)"/>
+            <text x="154" y="228" text-anchor="middle" font-size="11" font-weight="600" fill="var(--text)">Access control</text>
+            <text x="154" y="245" text-anchor="middle" font-size="9" fill="var(--text-muted)">rules.json &middot; deny by default</text>
+            <rect x="290" y="208" width="240" height="48" rx="6" fill="var(--surface-2)" stroke="var(--rule-strong)"/>
+            <text x="410" y="228" text-anchor="middle" font-size="11" font-weight="600" fill="var(--text)">Views run as owner</text>
+            <text x="410" y="245" text-anchor="middle" font-size="9" fill="var(--text-muted)">DEFINER security</text>
+            <rect x="546" y="208" width="240" height="48" rx="6" fill="var(--surface-2)" stroke="var(--rule-strong)"/>
+            <text x="666" y="228" text-anchor="middle" font-size="11" font-weight="600" fill="var(--text)">Event listener</text>
+            <text x="666" y="245" text-anchor="middle" font-size="9" fill="var(--text-muted)">every query audited</text>
+            <rect x="802" y="208" width="264" height="48" rx="6" fill="var(--surface-2)" stroke="var(--rule-strong)"/>
+            <text x="934" y="228" text-anchor="middle" font-size="11" font-weight="600" fill="var(--text)">dbt Semantic Layer</text>
+            <text x="934" y="245" text-anchor="middle" font-size="9" fill="var(--text-muted)">MetricFlow &rarr; Trino SQL</text>
+          </g>
+          <path d="M550,154 L550,172" stroke="var(--rule-strong)" stroke-width="1.4" marker-end="url(#a)" fill="none"/>
+          <!-- schemas -->
+          <text x="20" y="300" font-size="10.5" font-family="IBM Plex Mono, monospace" fill="var(--text-faint)">ICEBERG ON OBJECT STORAGE</text>
+          <g>
+            <rect x="16" y="310" width="330" height="96" rx="8" fill="var(--accent-wash)" stroke="var(--accent)" stroke-width="1.6"/>
+            <text x="181" y="332" text-anchor="middle" font-size="12" font-weight="600" fill="var(--text)">marketplace</text>
+            <text x="181" y="350" text-anchor="middle" font-size="9.5" fill="var(--text-muted)">certified views &middot; visible to all roles</text>
+            <text x="181" y="368" text-anchor="middle" font-size="9.5" fill="var(--text-muted)">Throughput &middot; Turnaround &middot; Delay</text>
+            <text x="181" y="384" text-anchor="middle" font-size="9.5" fill="var(--text-muted)">Quality &middot; Indicators</text>
+            <text x="181" y="400" text-anchor="middle" font-size="9" font-family="IBM Plex Mono, monospace" fill="var(--accent)">4.6 KiB total</text>
+          </g>
+          <g>
+            <rect x="362" y="310" width="330" height="96" rx="8" fill="var(--surface)" stroke="var(--rule-strong)" stroke-dasharray="4 3"/>
+            <text x="527" y="332" text-anchor="middle" font-size="12" font-weight="600" fill="var(--text)">sandbox_&lt;user&gt;</text>
+            <text x="527" y="350" text-anchor="middle" font-size="9.5" fill="var(--text-muted)">personal &middot; owner only</text>
+            <text x="527" y="368" text-anchor="middle" font-size="9.5" fill="var(--text-muted)">views free &middot; tables capped + TTL</text>
+            <text x="527" y="400" text-anchor="middle" font-size="9" font-family="IBM Plex Mono, monospace" fill="var(--text-faint)">576 B per view</text>
+          </g>
+          <g>
+            <rect x="708" y="310" width="376" height="96" rx="8" fill="var(--surface-2)" stroke="var(--risk)" stroke-width="1.4"/>
+            <text x="896" y="332" text-anchor="middle" font-size="12" font-weight="600" fill="var(--text)">nda_gold / silver / bronze</text>
+            <text x="896" y="350" text-anchor="middle" font-size="9.5" fill="var(--text-muted)">physical tables &middot; read-only</text>
+            <text x="896" y="368" text-anchor="middle" font-size="9.5" fill="var(--risk)">HIDDEN from business users</text>
+            <text x="896" y="400" text-anchor="middle" font-size="9" font-family="IBM Plex Mono, monospace" fill="var(--text-faint)">647 MiB of data</text>
+          </g>
+          <path d="M181,308 L181,272" stroke="var(--rule-strong)" stroke-width="1.4" marker-end="url(#a)" fill="none"/>
+          <path d="M527,308 L527,272" stroke="var(--rule-strong)" stroke-width="1.4" marker-end="url(#a)" fill="none"/>
+          <path d="M896,308 L896,272" stroke="var(--risk)" stroke-width="1.4" stroke-dasharray="3 3" marker-end="url(#a)" fill="none"/>
+        </g>
+      </svg>
+      <figcaption>One engine, one storage layer. The marketplace is a naming and permission layer, not a copy of the data.</figcaption>
+    </figure>
+  </section>
+
+  <!-- 2. CATALOG & SCHEMA -->
+  <section>
+    <div class="sec-head"><span class="sec-num">02</span><h2>Catalog and schema design</h2></div>
+    <p>
+      One Iceberg catalog, three classes of schema. Separation is by <em>permission</em>, not by
+      copying data into a second place &mdash; a second catalog would double the metadata and
+      invite the two to drift.
+    </p>
+    <div class="tw wide">
+      <table>
+        <thead><tr><th>Schema</th><th>Contains</th><th>Written by</th><th>Visible to</th></tr></thead>
+        <tbody>
+          <tr><td class="t-mono">marketplace</td><td>Certified business views. Business names only</td><td>Platform, via CI</td><td>All roles</td></tr>
+          <tr><td class="t-mono">sandbox_&lt;user&gt;</td><td>Personal views and derived tables</td><td>The user</td><td>That user only</td></tr>
+          <tr><td class="t-mono">nda_gold</td><td>Curated physical facts</td><td>Flink</td><td>Analyst and above</td></tr>
+          <tr><td class="t-mono">nda_silver</td><td>Validated, deduplicated records</td><td>Flink</td><td>Data scientist and above</td></tr>
+          <tr><td class="t-mono">nda_bronze</td><td>Raw change history</td><td>Flink</td><td>Data engineer, admin</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3 style="margin-top:1.5rem">The five certified products</h3>
+    <div class="tw wide">
+      <table>
+        <thead><tr><th>Product</th><th>Answers</th><th>Rows</th><th>Audience</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Application Throughput</strong></td><td>Volume in, volume out, backlog, overdue</td><td class="num">347</td><td>All</td></tr>
+          <tr><td><strong>Turnaround Performance</strong></td><td>How long work takes; working vs waiting</td><td class="num">1,009</td><td>All</td></tr>
+          <tr><td><strong>Delay Analysis</strong></td><td>Which stage loses time, and how much is queueing</td><td class="num">445</td><td>All</td></tr>
+          <tr><td><strong>Quality Metrics</strong></td><td>Compliance outcomes from inspections</td><td class="num">1,009</td><td><span class="pill warn">analyst+</span></td></tr>
+          <tr><td><strong>Indicator Performance</strong></td><td>Every KPI against its agreed target</td><td class="num">258</td><td>All</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <strong>Quality Metrics is deliberately restricted.</strong> Compliance findings identify small
+      cohorts of named facilities, so the audience starts at analyst. Every other product is open to
+      business users. A product with no declared audience is invisible rather than public &mdash;
+      forgetting to decide fails closed.
+    </div>
+    <p style="font-size:.93rem;color:var(--text-muted)">
+      The brief's example names (<code>fact_sales</code>, Revenue) are a sales domain. This lakehouse
+      is a medicines regulator, so the same five shapes are expressed in its subject matter:
+      throughput rather than revenue, regulatory quality rather than manufacturing quality.
+    </p>
+  </section>
+
+  <!-- 3. TRINO STRATEGY -->
+  <section>
+    <div class="sec-head"><span class="sec-num">03</span><h2>Trino catalog configuration</h2></div>
+    <p>
+      The mechanism that makes hiding work is a property of Trino views, and it is worth stating
+      plainly because the whole design rests on it:
+    </p>
+    <div class="note">
+      <strong>A Trino view executes with the privileges of its owner, not its caller</strong>
+      (DEFINER security, the default). So a business user can read
+      <code>marketplace.quality_metrics</code> while holding <em>no grant at all</em> on
+      <code>nda_gold.fact_gmp_activities</code>. That is what allows the physical schemas to be
+      denied outright rather than merely left off a menu.
+    </div>
+    <p>File-based access control, generated from the product declaration. Deny is the default:</p>
+    <pre>{
+  "catalogs": [
+    { "group": "administrator|data_engineer", "catalog": "iceberg", "allow": "all" },
+    { "group": "(business_user|analyst|...)", "catalog": "iceberg", "allow": "read-only" },
+    { "catalog": ".*", "allow": "none" }
+  ],
+  "schemas": [
+    { "user": "(.*)", "schema": "sandbox_\1", "owner": true },
+    { "group": "(...)", "schema": "marketplace", "owner": false },
+    { "schema": ".*", "owner": false }
+  ],
+  "tables": [
+    { "group": "(analyst|data_scientist)", "schema": "nda_gold", "privileges": ["SELECT"] },
+    { "group": "(analyst|...)", "schema": "marketplace",
+      "table": "quality_metrics", "privileges": ["SELECT"] },
+    { "privileges": [] }          <span style="color:var(--accent)">// default deny: unmatched is invisible</span>
+  ]
+}</pre>
+    <ul class="lede">
+      <li><strong>Denied means invisible.</strong> Trino filters <code>SHOW SCHEMAS</code> and
+        <code>SHOW TABLES</code> by permission, so a business user does not see
+        <code>nda_gold</code> listed and cannot reach it by typing its name either.</li>
+      <li><strong>Read-only production</strong> falls out of the same rules: no role below data
+        engineer holds INSERT, UPDATE or DELETE on the physical schemas.</li>
+      <li><strong>One catalog, not two.</strong> A separate <code>marketplace</code> catalog over the
+        same REST endpoint would duplicate catalog metadata and let the two views of the world
+        diverge. Permissions are the right separation.</li>
+    </ul>
+    <div class="note">
+      <strong>Enforced, on a dedicated coordinator.</strong> Because access control is engine-wide,
+      the marketplace runs its own Trino (<code>trino-marketplace</code>, port 8090) against the same
+      Iceberg catalog and object store. No data is copied &mdash; it is a second door with a lock on
+      it, and the shared cluster is untouched. What each role actually sees when it runs
+      <code>SHOW SCHEMAS</code>:
+      <pre style="margin-top:.7rem">public.viewer    marketplace
+alice.nakato     marketplace, nda_gold
+sam.scientist    marketplace, nda_gold, nda_silver
+dana.okello      marketplace, nda_gold, nda_silver, nda_bronze, ...</pre>
+    </div>
+    <div class="note warn">
+      <strong>Two things that will catch you out.</strong> A view owner needs
+      <code>GRANT_SELECT</code>, not merely <code>SELECT</code>, or every certified view fails with
+      "view owner does not have sufficient privileges". And in a view-on-view chain <em>every</em>
+      owner needs privileges &mdash; ours read <code>nda_gold.all_*</code>, themselves views owned by
+      the platform's serving user, which had to be granted too.
+    </div>
+  </section>
+
+  <!-- 4. RBAC -->
+  <section>
+    <div class="sec-head"><span class="sec-num">04</span><h2>RBAC model</h2></div>
+    <p>
+      Roles are Keycloak groups, carried in the OIDC token, and mapped to Trino rules. The same group
+      claim drives OPA for the API, so one membership change moves every surface at once.
+    </p>
+    <div class="tw wide">
+      <table>
+        <thead><tr><th>Role</th><th>Marketplace</th><th>Physical schemas</th><th>Sandbox</th><th>Typical tool</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Business User</strong></td><td>4 of 5 products</td><td class="t-mono">none &mdash; invisible</td><td>Views only</td><td>KPI Web UI</td></tr>
+          <tr><td><strong>Analyst</strong></td><td>All 5</td><td><code>nda_gold</code> read</td><td>Views + tables</td><td>DBeaver, KPI UI</td></tr>
+          <tr><td><strong>Data Scientist</strong></td><td>All 5</td><td><code>nda_gold</code>, <code>nda_silver</code> read</td><td>Views + tables</td><td>Jupyter, VS Code</td></tr>
+          <tr><td><strong>Data Engineer</strong></td><td>All 5 + authoring</td><td>All, read-write</td><td>Full</td><td>VS Code, dbt</td></tr>
+          <tr><td><strong>Administrator</strong></td><td>All + grants</td><td>All, read-write</td><td>Full, all users</td><td>Everything</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:.93rem;color:var(--text-muted)">
+      Business users never receive a grant on a physical schema at any point &mdash; not a masked one,
+      not a filtered one. They read views, and the view reaches the data on their behalf.
+    </p>
+  </section>
+
+  <!-- 5. SANDBOX -->
+  <section>
+    <div class="sec-head"><span class="sec-num">05</span><h2>Sandbox strategy</h2></div>
+    <p>
+      Every user gets <code>sandbox_&lt;username&gt;</code>, which they own outright. The storage
+      answer is to make the cheap thing the default and the expensive thing deliberate.
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th>Artefact</th><th>Storage</th><th>Policy</th></tr></thead>
+        <tbody>
+          <tr><td><strong>View</strong> (default)</td><td class="num">~600 B metadata</td><td>Unlimited. Costs nothing, recomputes on read</td></tr>
+          <tr><td><strong>Derived table</strong> (CTAS)</td><td class="num">real bytes</td><td>Per-user quota; TTL; snapshot expiry</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><strong>Measured:</strong> a sandbox view over a marketplace product occupies <strong>576 B</strong>
+      and returns 90 rows. The same result materialised as a table would write Parquet data files.</p>
+    <ul class="lede">
+      <li><strong>Steer to views.</strong> The sandbox command says so on creation, and the UI offers
+        "Save as view" before "Save as table".</li>
+      <li><strong>Quota and TTL on tables.</strong> A scheduled job drops derived tables untouched for
+        N days and expires their snapshots, so abandoned experiments do not accumulate.</li>
+      <li><strong>Sandboxes never feed production.</strong> Nothing in <code>marketplace</code> may
+        reference a sandbox schema; promotion means a reviewed change to the product declaration.</li>
+    </ul>
+  </section>
+
+  <!-- 6. API -->
+  <section>
+    <div class="sec-head"><span class="sec-num">06</span><h2>API for the KPI UI</h2></div>
+    <p>The UI never writes SQL. It asks for metrics by name and receives rows plus provenance.</p>
+    <div class="tw wide">
+      <table>
+        <thead><tr><th>Endpoint</th><th>Purpose</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td class="t-mono">POST /v1/auth/login</td><td>Exchange SSO credentials for a token</td><td>Keycloak password or auth-code grant</td></tr>
+          <tr><td class="t-mono">GET /v1/me</td><td>Identity and entitlement</td><td>Drives which tabs render</td></tr>
+          <tr><td class="t-mono">GET /v1/products</td><td>Certified products this caller may see</td><td>Titles, descriptions, owners, certification</td></tr>
+          <tr><td class="t-mono">GET /v1/products/{'{'}name{'}'}/schema</td><td>Dimensions and measures</td><td>Builds the query UI without SQL</td></tr>
+          <tr><td class="t-mono">POST /v1/query</td><td>Metric query: measures, dimensions, filters</td><td>Compiled to Trino SQL server-side</td></tr>
+          <tr><td class="t-mono">GET /v1/metrics</td><td>Semantic-layer metric list</td><td>From dbt MetricFlow</td></tr>
+          <tr><td class="t-mono">POST /v1/export</td><td>CSV or Excel, entitlement-capped</td><td>Row cap per role</td></tr>
+          <tr><td class="t-mono">GET /v1/search</td><td>Discovery pass-through</td><td>OpenMetadata search</td></tr>
+          <tr><td class="t-mono">GET /v1/suggestions</td><td><span class="pill warn">future</span> AI-suggested queries</td><td>Metadata in, candidate queries out</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <pre>POST /v1/query
+{
+  "product":    "delay_analysis",
+  "measures":   ["avg_waiting_days", "pct_time_waiting"],
+  "dimensions": ["workflow_stage", "process"],
+  "filters":    { "process": ["GMP"], "arrival_month": { "gte": "2026-01" } },
+  "order_by":   [{ "field": "avg_waiting_days", "desc": true }],
+  "limit":      50
+}</pre>
+    <p style="font-size:.93rem;color:var(--text-muted)">
+      The request names business concepts only. The server resolves them against the product
+      definition, rejects anything not declared, and emits parameterised SQL &mdash; so the UI cannot
+      express a query that reaches a physical table, and cannot inject SQL either.
+    </p>
+  </section>
+
+  <!-- 7. OPENMETADATA -->
+  <section>
+    <div class="sec-head"><span class="sec-num">07</span><h2>OpenMetadata integration</h2></div>
+    <ul class="lede">
+      <li><strong>Ingestion</strong> reads the Trino catalog, so certified views appear as first-class
+        assets beside the tables.</li>
+      <li><strong>Certification</strong> via tier tags: marketplace views <code>Tier.Tier1</code>,
+        physical schemas <code>Tier.Tier3</code>&ndash;<code>Tier5</code>. Tier drives search ranking
+        as well as the badge.</li>
+      <li><strong>Ownership</strong> from the product declaration &mdash; each product names an owning
+        team, so the catalogue always has someone to ask.</li>
+      <li><strong>Lineage</strong> declared product &rarr; source, published as OpenLineage to both
+        Marquez and OpenMetadata from one graph definition.</li>
+      <li><strong>Search</strong> works because descriptions carry the questions and synonyms people
+        type. The existing platform measured <strong>12/12</strong> lay-language queries returning the
+        correct table after that treatment.</li>
+    </ul>
+    <div class="note">
+      <strong>The same vocabulary everywhere.</strong> Product titles, descriptions and synonyms live
+      in <code>marketplace/products.py</code> and are pushed to OpenMetadata, so the name in the
+      catalogue, the view in Trino and the metric in dbt cannot disagree.
+    </div>
+  </section>
+
+  <!-- 8. DBT -->
+  <section>
+    <div class="sec-head"><span class="sec-num">08</span><h2>dbt Semantic Layer</h2></div>
+    <p>
+      Semantic models and metrics are <strong>generated from the same product declaration</strong> that
+      creates the views &mdash; 19 metrics across 5 products, so a measure cannot exist in one place
+      and not the other.
+    </p>
+    <pre>semantic_models:
+  - name: delay_analysis
+    model: ref('delay_analysis')
+    defaults: { agg_time_dimension: arrival_month }
+    dimensions:
+      - { name: workflow_stage, type: categorical }
+      - { name: arrival_month,  type: time, type_params: { time_granularity: month } }
+    measures:
+      - { name: avg_waiting_days, agg: average, description: "Mean days queueing" }
+metrics:
+  - name: delay_analysis__avg_waiting_days
+    type: simple
+    type_params: { measure: avg_waiting_days }</pre>
+    <ul class="lede">
+      <li><strong>dbt sources point at the marketplace views, never the physical tables</strong>, so
+        the semantic layer inherits the same governance boundary.</li>
+      <li>MetricFlow compiles metric requests to Trino SQL, which is what
+        <code>POST /v1/query</code> executes.</li>
+    </ul>
+    <div class="note">
+      <strong>Working end to end.</strong> <code>dbt build</code> creates the five certified views
+      plus a day-grain time spine; <code>mf list metrics</code> returns 19 metrics with their
+      dimensions; and a metric query compiles to Trino SQL that reads the certified view and nothing
+      else:
+      <pre style="margin-top:.7rem">mf query --metrics delay_analysis_avg_waiting_days
+         --group-by delay_analysis__workflow_stage
+
+GCP Inspection              12.37
+Safety &amp; Efficacy Review    10.65
+Technical Dossier Review     9.54</pre>
+    </div>
+    <div class="note warn">
+      <strong>One honest limitation.</strong> MetricFlow is open source, but the hosted
+      <em>Semantic Layer API</em> (the JDBC/GraphQL endpoint BI tools connect to) is a dbt Cloud
+      feature. Self-hosted, you either run MetricFlow to compile SQL behind your own API &mdash; which
+      is what the design above does &mdash; or you accept dbt Cloud for that endpoint. Worth deciding
+      before promising BI tools a native semantic-layer connection.
+    </div>
+  </section>
+
+  <!-- 9. KUBERNETES -->
+  <section>
+    <div class="sec-head"><span class="sec-num">09</span><h2>Deployment on Kubernetes</h2></div>
+    <div class="tw wide">
+      <table>
+        <thead><tr><th>Component</th><th>Shape</th><th>Placement</th></tr></thead>
+        <tbody>
+          <tr><td>Trino coordinator</td><td>Deployment &times;1</td><td>Any compute node</td></tr>
+          <tr><td>Trino workers</td><td>Deployment &times;N</td><td>Even spread; <code>kubectl scale</code></td></tr>
+          <tr><td>MinIO</td><td>StatefulSet &times;4</td><td>Hard anti-affinity, one per node</td></tr>
+          <tr><td>Iceberg REST catalog</td><td>Deployment &times;2</td><td>Stateless, PDB</td></tr>
+          <tr><td>Keycloak</td><td>Deployment + Postgres</td><td>SSO for every client</td></tr>
+          <tr><td>Marketplace API</td><td>Deployment &times;2</td><td>Stateless behind Ingress</td></tr>
+          <tr><td>Audit collector</td><td>Deployment &times;2</td><td>Receives Trino events, writes Iceberg</td></tr>
+          <tr><td>dbt / MetricFlow</td><td>Job + CronJob</td><td>Compiles and validates on merge</td></tr>
+          <tr><td>OpenMetadata</td><td>Deployment + Postgres + OpenSearch</td><td>Catalogue and search</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:.93rem;color:var(--text-muted)">
+      Storage services take hard anti-affinity so losing a node never costs two members; compute
+      spreads evenly but may exceed node count. That distinction is already implemented in the
+      platform's manifests and applies unchanged here.
+    </p>
+  </section>
+
+  <!-- 10. MVP -->
+  <section>
+    <div class="sec-head"><span class="sec-num">10</span><h2>MVP plan</h2></div>
+    <div class="tw wide">
+      <table>
+        <thead><tr><th>Stage</th><th>Deliverable</th><th>State</th></tr></thead>
+        <tbody>
+          <tr><td class="t-mono">1</td><td>Product declaration; certified views; sandbox schemas</td><td><span class="pill live">done</span></td></tr>
+          <tr><td class="t-mono">2</td><td>Access rules and audit config generated from the declaration</td><td><span class="pill live">generated</span></td></tr>
+          <tr><td class="t-mono">3</td><td>Dedicated Trino; rules enforced; hiding proven per role</td><td><span class="pill live">done</span></td></tr>
+          <tr><td class="t-mono">4</td><td>Keycloak groups &rarr; Trino; SSO from DBeaver and Jupyter</td><td><span class="pill warn">next</span></td></tr>
+          <tr><td class="t-mono">5</td><td>Marketplace API: products, schema, query, export</td><td><span class="pill warn">designed</span></td></tr>
+          <tr><td class="t-mono">6</td><td>OpenMetadata certification, ownership, lineage for products</td><td><span class="pill warn">pattern proven</span></td></tr>
+          <tr><td class="t-mono">7</td><td>dbt project; MetricFlow compiling against the views</td><td><span class="pill live">done</span></td></tr>
+          <tr><td class="t-mono">8</td><td>Audit collector writing an Iceberg query log</td><td><span class="pill warn">designed</span></td></tr>
+          <tr><td class="t-mono">9</td><td>Sandbox quota and TTL enforcement job</td><td><span class="pill risk">not built</span></td></tr>
+          <tr><td class="t-mono">10</td><td>AI suggested queries from catalogue metadata</td><td><span class="pill risk">future</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note risk">
+      <strong>What is left, in order.</strong> The audit collector (stage 8) is now the load-bearing
+      gap: the event-listener config is generated but nothing receives the events, so queries are
+      governed but not yet recorded. After that, sandbox quota and TTL enforcement &mdash; without it
+      the near-zero storage promise holds only while people are well behaved.
+    </div>
+  </section>
+
+  <section style="border-bottom:1px solid var(--rule)">
+    <div class="sec-head"><span class="sec-num">&#10003;</span><h2>What was measured</h2></div>
+    <ul class="lede">
+      <li><span class="pill live">verified</span> &nbsp;5 certified views created and returning rows: 347, 1,009, 445, 1,009 and 258.</li>
+      <li><span class="pill live">verified</span> &nbsp;Storage: <strong>4.6 KiB</strong> of view metadata against <strong>235 MiB</strong> of gold data &mdash; 0.002%.</li>
+      <li><span class="pill live">verified</span> &nbsp;Sandbox created; a personal view over a product costs <strong>576 B</strong> and returns 90 rows.</li>
+      <li><span class="pill live">verified</span> &nbsp;Every product is a VIEW, not a table &mdash; confirmed against <code>information_schema</code> and the object store.</li>
+      <li><span class="pill live">verified</span> &nbsp;<strong>10/10 access rules enforced</strong> on a dedicated coordinator: a business user cannot list or read <code>nda_gold</code>, cannot read the restricted product, and cannot write to production; an analyst can read gold but not bronze; an engineer can read everything.</li>
+      <li><span class="pill live">verified</span> &nbsp;dbt builds 5 views + a time spine; MetricFlow exposes <strong>19 metrics</strong> and compiles queries to Trino SQL against the certified views only.</li>
+      <li><span class="pill risk">not verified</span> &nbsp;SSO from desktop clients, audit capture, sandbox TTL enforcement.</li>
+    </ul>
+  </section>
+
+  <p style="font-size:.8rem;color:var(--text-faint);padding-top:1.6rem;font-family:'IBM Plex Mono',monospace">
+    All data synthetic. Product SQL, access rules and semantic models are generated from
+    marketplace/products.py.
+  </p>
+</div>
