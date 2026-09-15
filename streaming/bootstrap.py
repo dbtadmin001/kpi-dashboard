@@ -82,10 +82,22 @@ def connector():
 
 def gold():
     from .api import connection
+    from .enrichment import ddl as enrichment_ddl
     from .gold_sql import gold_sql
     conn = connection()
     try:
         cursor = conn.cursor()
+        # The gold views LEFT JOIN the enrichment dimension, so it has to exist
+        # before they are created - an outer join to a missing table is still
+        # TABLE_NOT_FOUND. Only `python -m streaming.enrichment` created it,
+        # which meant gold() worked on any machine where enrichment had been run
+        # by hand and failed on every fresh stack, CI included.
+        #
+        # CREATE TABLE IF NOT EXISTS, so this claims the schema contract without
+        # touching rows: enrichment still owns filling it, and until it runs the
+        # views read NULL, which is exactly what the outer join is for.
+        cursor.execute(enrichment_ddl())
+        cursor.fetchall()
         for statement in gold_sql().split(";"):
             if statement.strip():
                 cursor.execute(statement)
