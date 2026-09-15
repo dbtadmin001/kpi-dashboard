@@ -41,6 +41,9 @@ infra/generated/credentials.json
 # The Trino OIDC client secret. infra/generated/data.json and authz.rego are
 # policy, not secrets, so they stay tracked.
 infra/generated/trino_oidc.json
+# The deployment SSH key. Its public half goes on the VM, never the private one.
+infra/generated/deploy_key
+infra/generated/deploy_key.pub
 infra/ansible/inventory/hosts.yml
 infra/ansible/kubeconfig
 infra/ansible/*.retry

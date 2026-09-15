@@ -57,14 +57,29 @@ Server.
 
 ### 3. Deploy from GitHub Actions
 
-Set in repository settings:
+**No env file goes into GitHub.** The platform's eleven secrets are generated on
+the VM and never leave it; the deploy workflow only checks that the file exists.
+CI needs nothing at all - `GITHUB_TOKEN` is issued per run.
 
-| Kind | Name | Value |
+What GitHub does need is one SSH key and an address, set once:
+
+```bash
+gh auth login && gh auth setup-git      # as an account that can write to the repo
+python -m delivery.github setup --host <vm> --keycloak-url https://sso.your.domain
+python -m delivery.github check         # what is set; prints no values
+```
+
+That generates a dedicated deploy key (not your personal one), collects the
+host key with `ssh-keyscan` so the VM is verified rather than blindly trusted,
+and sets all four. It then prints the one command left to run - authorising the
+public half on the VM.
+
+| Kind | Name | Set by the command above |
 |---|---|---|
-| secret | `DEPLOY_SSH_KEY` | private key for `nda@<vm>` |
-| secret | `DEPLOY_HOST` | the VM's address |
+| secret | `DEPLOY_SSH_KEY` | generated deploy key |
+| secret | `DEPLOY_HOST` | `--host` |
 | secret | `DEPLOY_KNOWN_HOSTS` | `ssh-keyscan <vm>` |
-| variable | `KEYCLOAK_PUBLIC_URL` | `https://sso.your.domain` |
+| variable | `KEYCLOAK_PUBLIC_URL` | `--keycloak-url` |
 
 Then **Actions -> Deploy -> Run workflow**, give it a commit SHA, and leave
 `confirm` as `dry-run` the first time: it renders and validates the topology and
