@@ -1,0 +1,344 @@
+version: 2
+semantic_models:
+- name: application_throughput
+  description: 'How much regulatory work arrived and was completed each quarter, by
+    process. The marketplace equivalent of a production-output measure: volume in,
+    volume out, and the gap between them that becomes backlog.'
+  model: ref('application_throughput')
+  defaults:
+    agg_time_dimension: arrival_date
+  entities:
+  - name: application_throughput
+    type: primary
+    expr: process
+  dimensions:
+  - name: process
+    type: categorical
+    expr: process
+    description: 'Regulatory process: MA, CT or GMP'
+  - name: arrival_date
+    type: time
+    expr: arrival_date
+    description: Month the application arrived
+    type_params:
+      time_granularity: month
+  - name: application_type
+    type: categorical
+    expr: application_type
+    description: New, renewal, variation, amendment or inspection
+  - name: handling_route
+    type: categorical
+    expr: handling_route
+    description: On-site or desk-based, domestic or foreign, alone or by reliance
+  measures:
+  - name: application_throughput_applications_received
+    agg: sum
+    expr: applications_received
+    description: Applications that arrived
+  - name: application_throughput_applications_completed
+    agg: sum
+    expr: applications_completed
+    description: Applications finished
+  - name: application_throughput_applications_open
+    agg: sum
+    expr: applications_open
+    description: Still in progress
+  - name: application_throughput_applications_overdue
+    agg: sum
+    expr: applications_overdue
+    description: Open and past their due date
+- name: turnaround_performance
+  description: 'How long work takes end to end, and how much of that time is genuinely
+    spent working versus waiting in a queue. The split is the point: queue time is
+    usually the cheaper half to remove.'
+  model: ref('turnaround_performance')
+  defaults:
+    agg_time_dimension: arrival_date
+  entities:
+  - name: turnaround_performance
+    type: primary
+    expr: process
+  dimensions:
+  - name: process
+    type: categorical
+    expr: process
+    description: Regulatory process
+  - name: activity
+    type: categorical
+    expr: activity
+    description: Evaluation, inspection, decision, query response, CAPA or report
+  - name: arrival_date
+    type: time
+    expr: arrival_date
+    description: Month the work arrived
+    type_params:
+      time_granularity: month
+  - name: handling_route
+    type: categorical
+    expr: handling_route
+    description: How the work was handled
+  measures:
+  - name: turnaround_performance_avg_turnaround_days
+    agg: average
+    expr: avg_turnaround_days
+    description: Mean calendar days from receipt to completion
+  - name: turnaround_performance_median_turnaround_days
+    agg: median
+    expr: median_turnaround_days
+    description: Median calendar days
+  - name: turnaround_performance_avg_working_days
+    agg: average
+    expr: avg_working_days
+    description: Days actively worked
+  - name: turnaround_performance_avg_waiting_days
+    agg: average
+    expr: avg_waiting_days
+    description: Days queueing
+  - name: turnaround_performance_pct_on_time
+    agg: average
+    expr: pct_on_time
+    description: Share completed on or before the due date
+- name: delay_analysis
+  description: 'Where elapsed time is lost, stage by stage. The equivalent of a downtime
+    analysis: it separates handling time from queue time so you can see which stage
+    is the bottleneck and how much of the delay is recoverable.'
+  model: ref('delay_analysis')
+  defaults:
+    agg_time_dimension: arrival_date
+  entities:
+  - name: delay_analysis
+    type: primary
+    expr: process
+  dimensions:
+  - name: process
+    type: categorical
+    expr: process
+    description: Regulatory process
+  - name: workflow_stage
+    type: categorical
+    expr: workflow_stage
+    description: Stage in the regulatory workflow
+  - name: arrival_date
+    type: time
+    expr: arrival_date
+    description: Month the work arrived
+    type_params:
+      time_granularity: month
+  measures:
+  - name: delay_analysis_avg_elapsed_days
+    agg: average
+    expr: avg_elapsed_days
+    description: Mean days the stage took
+  - name: delay_analysis_avg_waiting_days
+    agg: average
+    expr: avg_waiting_days
+    description: Mean days queueing at this stage
+  - name: delay_analysis_pct_time_waiting
+    agg: average
+    expr: pct_time_waiting
+    description: Share of elapsed time spent waiting
+  - name: delay_analysis_times_performed
+    agg: sum
+    expr: times_performed
+    description: How often the stage ran
+- name: quality_metrics
+  description: 'Compliance outcomes from inspections and assessments: how many were
+    found compliant, how many were not, and how that is trending. Restricted to analysts
+    and above - compliance findings identify small cohorts of named facilities.'
+  model: ref('quality_metrics')
+  defaults:
+    agg_time_dimension: arrival_date
+  entities:
+  - name: quality_metrics
+    type: primary
+    expr: process
+  dimensions:
+  - name: process
+    type: categorical
+    expr: process
+    description: Regulatory process
+  - name: activity
+    type: categorical
+    expr: activity
+    description: Inspection, assessment or CAPA
+  - name: arrival_date
+    type: time
+    expr: arrival_date
+    description: Month the work arrived
+    type_params:
+      time_granularity: month
+  - name: handling_route
+    type: categorical
+    expr: handling_route
+    description: How the work was handled
+  measures:
+  - name: quality_metrics_pct_compliant
+    agg: average
+    expr: pct_compliant
+    description: Share found compliant
+  - name: quality_metrics_compliant_count
+    agg: sum
+    expr: compliant_count
+    description: Found compliant
+  - name: quality_metrics_non_compliant_count
+    agg: sum
+    expr: non_compliant_count
+    description: Found non-compliant
+  - name: quality_metrics_assessments
+    agg: sum
+    expr: assessments
+    description: Assessments with a recorded outcome
+- name: indicator_performance
+  description: Every published indicator against its agreed target, by quarter. This
+    is the certified source for the KPI dashboard - if a number appears on a slide,
+    it should come from here.
+  model: ref('indicator_performance')
+  defaults:
+    agg_time_dimension: quarter_start
+  entities:
+  - name: indicator_performance
+    type: primary
+    expr: process
+  dimensions:
+  - name: process
+    type: categorical
+    expr: process
+    description: Regulatory process
+  - name: indicator
+    type: categorical
+    expr: indicator
+    description: Indicator identifier
+  - name: quarter_start
+    type: time
+    expr: quarter_start
+    description: Reporting quarter
+    type_params:
+      time_granularity: month
+  - name: target_status
+    type: categorical
+    expr: target_status
+    description: Whether the target was met
+  measures:
+  - name: indicator_performance_indicator_value
+    agg: average
+    expr: indicator_value
+    description: Measured value
+  - name: indicator_performance_indicator_target
+    agg: average
+    expr: indicator_target
+    description: Agreed target
+metrics:
+- name: application_throughput_applications_received
+  label: 'Application Throughput: Applications that arrived'
+  type: simple
+  description: Applications that arrived
+  type_params:
+    measure: application_throughput_applications_received
+- name: application_throughput_applications_completed
+  label: 'Application Throughput: Applications finished'
+  type: simple
+  description: Applications finished
+  type_params:
+    measure: application_throughput_applications_completed
+- name: application_throughput_applications_open
+  label: 'Application Throughput: Still in progress'
+  type: simple
+  description: Still in progress
+  type_params:
+    measure: application_throughput_applications_open
+- name: application_throughput_applications_overdue
+  label: 'Application Throughput: Open and past their due date'
+  type: simple
+  description: Open and past their due date
+  type_params:
+    measure: application_throughput_applications_overdue
+- name: turnaround_performance_avg_turnaround_days
+  label: 'Turnaround Performance: Mean calendar days from receipt to completion'
+  type: simple
+  description: Mean calendar days from receipt to completion
+  type_params:
+    measure: turnaround_performance_avg_turnaround_days
+- name: turnaround_performance_median_turnaround_days
+  label: 'Turnaround Performance: Median calendar days'
+  type: simple
+  description: Median calendar days
+  type_params:
+    measure: turnaround_performance_median_turnaround_days
+- name: turnaround_performance_avg_working_days
+  label: 'Turnaround Performance: Days actively worked'
+  type: simple
+  description: Days actively worked
+  type_params:
+    measure: turnaround_performance_avg_working_days
+- name: turnaround_performance_avg_waiting_days
+  label: 'Turnaround Performance: Days queueing'
+  type: simple
+  description: Days queueing
+  type_params:
+    measure: turnaround_performance_avg_waiting_days
+- name: turnaround_performance_pct_on_time
+  label: 'Turnaround Performance: Share completed on or before the due date'
+  type: simple
+  description: Share completed on or before the due date
+  type_params:
+    measure: turnaround_performance_pct_on_time
+- name: delay_analysis_avg_elapsed_days
+  label: 'Delay Analysis: Mean days the stage took'
+  type: simple
+  description: Mean days the stage took
+  type_params:
+    measure: delay_analysis_avg_elapsed_days
+- name: delay_analysis_avg_waiting_days
+  label: 'Delay Analysis: Mean days queueing at this stage'
+  type: simple
+  description: Mean days queueing at this stage
+  type_params:
+    measure: delay_analysis_avg_waiting_days
+- name: delay_analysis_pct_time_waiting
+  label: 'Delay Analysis: Share of elapsed time spent waiting'
+  type: simple
+  description: Share of elapsed time spent waiting
+  type_params:
+    measure: delay_analysis_pct_time_waiting
+- name: delay_analysis_times_performed
+  label: 'Delay Analysis: How often the stage ran'
+  type: simple
+  description: How often the stage ran
+  type_params:
+    measure: delay_analysis_times_performed
+- name: quality_metrics_pct_compliant
+  label: 'Quality Metrics: Share found compliant'
+  type: simple
+  description: Share found compliant
+  type_params:
+    measure: quality_metrics_pct_compliant
+- name: quality_metrics_compliant_count
+  label: 'Quality Metrics: Found compliant'
+  type: simple
+  description: Found compliant
+  type_params:
+    measure: quality_metrics_compliant_count
+- name: quality_metrics_non_compliant_count
+  label: 'Quality Metrics: Found non-compliant'
+  type: simple
+  description: Found non-compliant
+  type_params:
+    measure: quality_metrics_non_compliant_count
+- name: quality_metrics_assessments
+  label: 'Quality Metrics: Assessments with a recorded outcome'
+  type: simple
+  description: Assessments with a recorded outcome
+  type_params:
+    measure: quality_metrics_assessments
+- name: indicator_performance_indicator_value
+  label: 'Indicator Performance: Measured value'
+  type: simple
+  description: Measured value
+  type_params:
+    measure: indicator_performance_indicator_value
+- name: indicator_performance_indicator_target
+  label: 'Indicator Performance: Agreed target'
+  type: simple
+  description: Agreed target
+  type_params:
+    measure: indicator_performance_indicator_target

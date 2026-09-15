@@ -1,0 +1,14 @@
+name: nda_marketplace
+version: 1.0.0
+config-version: 2
+profile: nda_marketplace
+model-paths:
+- models
+macro-paths:
+- macros
+target-path: target
+models:
+  nda_marketplace:
+    marketplace:
+      +materialized: view
+      +schema: marketplace

@@ -1,0 +1,51 @@
+{
+    "path_count": 140,
+    "parsed_path_count": 140,
+    "static_analysis_path_count": 6,
+    "static_analysis_parsed_path_count": 6,
+    "is_partial_parse_enabled": true,
+    "is_static_analysis_enabled": true,
+    "read_files_elapsed": 0.08894529999815859,
+    "load_macros_elapsed": 0.9366807999904267,
+    "parse_project_elapsed": 1.0590133999940008,
+    "patch_sources_elapsed": 7.599999662488699e-06,
+    "process_manifest_elapsed": 0.08796579999034293,
+    "load_all_elapsed": 2.2950552999973297,
+    "projects": [
+        {
+            "project_name": "nda_marketplace",
+            "elapsed": 1.0553164000157267,
+            "parsers": [
+                {
+                    "parser": "model",
+                    "elapsed": 0.44016849997569807,
+                    "parsed_path_count": 6
+                },
+                {
+                    "parser": "test",
+                    "elapsed": 0.6130509999929927,
+                    "parsed_path_count": 2
+                }
+            ],
+            "parsed_path_count": 8
+        },
+        {
+            "project_name": "dbt_trino",
+            "elapsed": 0.0016113000165205449,
+            "parsers": [],
+            "parsed_path_count": 0
+        },
+        {
+            "project_name": "dbt",
+            "elapsed": 0.0019426000071689487,
+            "parsers": [
+                {
+                    "parser": "doc",
+                    "elapsed": 0.0002544999879319221,
+                    "parsed_path_count": 1
+                }
+            ],
+            "parsed_path_count": 1
+        }
+    ]
+}

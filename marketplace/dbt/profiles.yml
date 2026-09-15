@@ -1,0 +1,48 @@
+# Connects to the MARKETPLACE coordinator, as the view owner. dbt writes only to
+# the marketplace schema; it has no reason to touch the physical layer directly.
+#
+# Two targets, because the cluster has two states during the rollout:
+#
+#   secure  - the coordinator requires a token (the normal state). Get one with
+#               eval "$(python -m marketplace.auth env marketplace_owner)"
+#             which exports TRINO_JWT, TRINO_USER and TRINO_CA. Tokens are
+#             short-lived by design, so re-run that before a long build rather
+#             than lengthening the token lifetime.
+#
+#   dev     - before ./infra/run.sh apply has created the OIDC client, when the
+#             coordinator still listens on plain HTTP and believes the username.
+#
+# Select with `dbt build --target dev` or DBT_TARGET.
+nda_marketplace:
+  target: secure
+  outputs:
+    secure:
+      type: trino
+      method: jwt
+      jwt_token: "{{ env_var('TRINO_JWT') }}"
+      user: "{{ env_var('TRINO_USER', 'marketplace_owner') }}"
+      host: "{{ env_var('TRINO_HOST', 'localhost') }}"
+      port: 8443
+      catalog: iceberg
+      schema: marketplace
+      threads: 4
+      http_scheme: https
+      # The development CA, so the connection is verified rather than merely
+      # encrypted. Never set this to false: an unverified TLS session will
+      # happily hand the bearer token to whoever answered.
+      cert: "{{ env_var('TRINO_CA', '../generated/trino/tls/marketplace-ca.crt') }}"
+      session_properties:
+        query_max_run_time: 5m
+
+    dev:
+      type: trino
+      method: none
+      user: marketplace_owner
+      host: localhost
+      port: 8090
+      catalog: iceberg
+      schema: marketplace
+      threads: 4
+      http_scheme: http
+      session_properties:
+        query_max_run_time: 5m

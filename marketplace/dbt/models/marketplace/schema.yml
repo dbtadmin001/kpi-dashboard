@@ -1,0 +1,110 @@
+version: 2
+models:
+- name: metricflow_time_spine
+  description: Day-grain calendar used by MetricFlow.
+  time_spine:
+    standard_granularity_column: date_day
+  columns:
+  - name: date_day
+    granularity: day
+- name: application_throughput
+  description: 'How much regulatory work arrived and was completed each quarter, by
+    process. The marketplace equivalent of a production-output measure: volume in,
+    volume out, and the gap between them that becomes backlog.'
+  columns:
+  - name: process
+    description: 'Regulatory process: MA, CT or GMP'
+  - name: arrival_date
+    description: Month the application arrived
+  - name: application_type
+    description: New, renewal, variation, amendment or inspection
+  - name: handling_route
+    description: On-site or desk-based, domestic or foreign, alone or by reliance
+  - name: applications_received
+    description: Applications that arrived
+  - name: applications_completed
+    description: Applications finished
+  - name: applications_open
+    description: Still in progress
+  - name: applications_overdue
+    description: Open and past their due date
+- name: turnaround_performance
+  description: 'How long work takes end to end, and how much of that time is genuinely
+    spent working versus waiting in a queue. The split is the point: queue time is
+    usually the cheaper half to remove.'
+  columns:
+  - name: process
+    description: Regulatory process
+  - name: activity
+    description: Evaluation, inspection, decision, query response, CAPA or report
+  - name: arrival_date
+    description: Month the work arrived
+  - name: handling_route
+    description: How the work was handled
+  - name: avg_turnaround_days
+    description: Mean calendar days from receipt to completion
+  - name: median_turnaround_days
+    description: Median calendar days
+  - name: avg_working_days
+    description: Days actively worked
+  - name: avg_waiting_days
+    description: Days queueing
+  - name: pct_on_time
+    description: Share completed on or before the due date
+- name: delay_analysis
+  description: 'Where elapsed time is lost, stage by stage. The equivalent of a downtime
+    analysis: it separates handling time from queue time so you can see which stage
+    is the bottleneck and how much of the delay is recoverable.'
+  columns:
+  - name: process
+    description: Regulatory process
+  - name: workflow_stage
+    description: Stage in the regulatory workflow
+  - name: arrival_date
+    description: Month the work arrived
+  - name: avg_elapsed_days
+    description: Mean days the stage took
+  - name: avg_waiting_days
+    description: Mean days queueing at this stage
+  - name: pct_time_waiting
+    description: Share of elapsed time spent waiting
+  - name: times_performed
+    description: How often the stage ran
+- name: quality_metrics
+  description: 'Compliance outcomes from inspections and assessments: how many were
+    found compliant, how many were not, and how that is trending. Restricted to analysts
+    and above - compliance findings identify small cohorts of named facilities.'
+  columns:
+  - name: process
+    description: Regulatory process
+  - name: activity
+    description: Inspection, assessment or CAPA
+  - name: arrival_date
+    description: Month the work arrived
+  - name: handling_route
+    description: How the work was handled
+  - name: pct_compliant
+    description: Share found compliant
+  - name: compliant_count
+    description: Found compliant
+  - name: non_compliant_count
+    description: Found non-compliant
+  - name: assessments
+    description: Assessments with a recorded outcome
+- name: indicator_performance
+  description: Every published indicator against its agreed target, by quarter. This
+    is the certified source for the KPI dashboard - if a number appears on a slide,
+    it should come from here.
+  columns:
+  - name: process
+    description: Regulatory process
+  - name: indicator
+    description: Indicator identifier
+  - name: quarter_start
+    description: Reporting quarter
+  - name: target_status
+    description: Whether the target was met
+  - name: indicator_value
+    description: Measured value
+  - name: indicator_target
+    description: Agreed target
