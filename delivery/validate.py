@@ -63,15 +63,24 @@ def supply_chain(results):
     # sets CATALOG_CHECK_REGISTRY=1 and finds it in seconds instead.
     if os.environ.get("CATALOG_CHECK_REGISTRY", "").lower() in ("1", "true", "yes"):
         import subprocess
-        unresolvable = []
-        for name, reference in images.items():
-            if name == "platform":
-                continue
-            probe = subprocess.run(["docker", "manifest", "inspect", reference],
-                                   capture_output=True, text=True, timeout=120,
-                                   env={**os.environ, "MSYS_NO_PATHCONV": "1"})
-            if probe.returncode != 0:
-                unresolvable.append(name)
+        from concurrent.futures import ThreadPoolExecutor
+
+        # Every probe here is a network round trip, and some of them pull an
+        # image. Run serially this was the single slowest thing in the fast gate;
+        # they are independent, so waiting for them one at a time bought nothing.
+        def _probe(argv, timeout):
+            return subprocess.run(argv, capture_output=True, text=True,
+                                  timeout=timeout,
+                                  env={**os.environ, "MSYS_NO_PATHCONV": "1"})
+
+        def _all(jobs):
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                return list(pool.map(lambda j: (j[0], _probe(j[1], j[2])), jobs))
+
+        unresolvable = [name for name, probe in _all(
+            [(name, ["docker", "manifest", "inspect", reference], 120)
+             for name, reference in images.items() if name != "platform"])
+            if probe.returncode != 0]
         _check(results, "every pinned image still resolves in its registry",
                not unresolvable, ", ".join(unresolvable))
 
@@ -82,23 +91,18 @@ def supply_chain(results):
         from delivery.compose import topology
         spec = topology("nda-ci-validate", "/tmp/x",
                         {"app": "a", "flink": "f", "catalog": "c"})
-        broken = []
+        wanted = []
         for service, definition in spec["services"].items():
             check = definition.get("healthcheck")
-            if not check:
-                continue
             # Only base images can be checked here. app/flink/catalog do not
             # exist until `release build` runs, and CI checks them after it does.
-            if definition["image"] not in images.values():
+            if not check or definition["image"] not in images.values():
                 continue
             tool = check["test"][-1].split()[0]
-            probe = subprocess.run(
-                ["docker", "run", "--rm", "--entrypoint", "sh", definition["image"],
-                 "-c", f"command -v {tool}"],
-                capture_output=True, text=True, timeout=180,
-                env={**os.environ, "MSYS_NO_PATHCONV": "1"})
-            if probe.returncode != 0:
-                broken.append(f"{service} needs {tool}")
+            wanted.append((f"{service} needs {tool}",
+                           ["docker", "run", "--rm", "--entrypoint", "sh",
+                            definition["image"], "-c", f"command -v {tool}"], 300))
+        broken = [label for label, probe in _all(wanted) if probe.returncode != 0]
         _check(results, "every healthcheck can run in its own image",
                not broken, "; ".join(broken))
 
