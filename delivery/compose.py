@@ -138,11 +138,12 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
             "STATUS_STORAGE_TOPIC": "nda.connect.status", "CONFIG_STORAGE_REPLICATION_FACTOR": "1",
             "OFFSET_STORAGE_REPLICATION_FACTOR": "1", "STATUS_STORAGE_REPLICATION_FACTOR": "1",
             "HEAP_OPTS": "-Xms256m -Xmx512m"}, mem_limit="1g"),
-        # The Flink worker runs as UID 999. Docker creates a named volume as
-        # root, so initialize its ownership before any stateful JVM starts.
+        # The official Flink image runs workers as UID/GID 9999. Docker creates
+        # a named volume as root, so initialize its ownership before any
+        # stateful JVM starts.
         "flink-init": service("flink", entrypoint=["bash", "-lc"], command=[
             "mkdir -p /opt/flink/state/checkpoints /opt/flink/state/savepoints && "
-            "chown -R 999:999 /opt/flink/state && chmod -R u+rwX,g+rwX /opt/flink/state"], user="0:0",
+            "chown -R 9999:9999 /opt/flink/state && chmod -R u+rwX,g+rwX /opt/flink/state"], user="0:0",
             volumes=["flink-state:/opt/flink/state"], mem_limit="256m", restart="no"),
         "jobmanager": service("flink", command="jobmanager", env_file=secret_env,
             environment={"FLINK_PROPERTIES": flink_properties}, volumes=["flink-state:/opt/flink/state"], mem_limit="1400m"),
