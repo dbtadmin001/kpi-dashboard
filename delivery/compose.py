@@ -127,6 +127,12 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
             "STATUS_STORAGE_TOPIC": "nda.connect.status", "CONFIG_STORAGE_REPLICATION_FACTOR": "1",
             "OFFSET_STORAGE_REPLICATION_FACTOR": "1", "STATUS_STORAGE_REPLICATION_FACTOR": "1",
             "HEAP_OPTS": "-Xms256m -Xmx512m"}, mem_limit="1g"),
+        # The Flink worker runs as UID 999. Docker creates a named volume as
+        # root, so initialize its ownership before any stateful JVM starts.
+        "flink-init": service("flink", entrypoint=["bash", "-lc"], command=[
+            "mkdir -p /opt/flink/state/checkpoints /opt/flink/state/savepoints && "
+            "chown -R 999:999 /opt/flink/state"], user="0:0",
+            volumes=["flink-state:/opt/flink/state"], mem_limit="256m", restart="no"),
         "jobmanager": service("flink", command="jobmanager", env_file=secret_env,
             environment={"FLINK_PROPERTIES": flink_properties}, volumes=["flink-state:/opt/flink/state"], mem_limit="1400m"),
         "taskmanager": service("flink", command="taskmanager", env_file=secret_env,
@@ -183,7 +189,7 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
         "iceberg-rest": ["postgres", "minio"],
         "keycloak": ["postgres"],
         "connect": ["kafka", "sqlserver"],
-        "jobmanager": ["kafka", "iceberg-rest"],
+        "jobmanager": ["kafka", "iceberg-rest", "flink-init"],
         "taskmanager": ["jobmanager"],
         "flink-sql": ["jobmanager", "taskmanager", "iceberg-rest", "kafka"],
         "trino": ["iceberg-rest", "keycloak"],
@@ -194,7 +200,9 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
     }
     for name, upstreams in ordering.items():
         s[name]["depends_on"] = {
-            up: {"condition": "service_healthy" if "healthcheck" in s[up] else "service_started"}
+            up: {"condition": ("service_completed_successfully" if up == "flink-init"
+                                else "service_healthy" if "healthcheck" in s[up]
+                                else "service_started")}
             for up in upstreams}
     for v in s.values():
         v["logging"] = {"driver": "json-file", "options": {"max-size": "10m", "max-file": "3"}}

@@ -133,7 +133,14 @@ def verify(keep=False):
             _run(compose + ["run", "--rm", "--no-deps", "tools", "python", "-m",
                             "delivery.bootstrap", *step], env=env)
         _run(compose + ["up", "-d", "--wait"], env=env)          # read the rendered config
-        _run(compose + ["run", "--rm", "--no-deps", "tools"], env=env) # the integration gate
+        try:
+            _run(compose + ["run", "--rm", "--no-deps", "tools"], env=env) # the integration gate
+        except subprocess.CalledProcessError:
+            # Reconciliation failures are often downstream of the streaming
+            # submitter. Keep its JVM error in CI before teardown removes it.
+            _run(compose + ["logs", "--no-color", "flink-init", "flink-sql",
+                            "jobmanager", "taskmanager"], env=env, check=False)
+            raise
         print(f"{chr(10)}Verified {project}")
         return True
     finally:
