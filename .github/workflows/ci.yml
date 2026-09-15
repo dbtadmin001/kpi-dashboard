@@ -99,13 +99,22 @@ jobs:
       - name: Verify against a real stack
         run: python -m delivery.release verify
 
-      - name: Collect logs on failure
+      # `release verify` prints the streaming logs itself, before its own
+      # teardown. This step used to re-list the projects afterwards and find
+      # none of them, so every failed run ended with an empty section that read
+      # as "nothing to report". Anything still standing here is a run that
+      # crashed before teardown, and that is worth seeing.
+      - name: Collect logs from any stack left standing
         if: failure()
         run: |
-          for p in $(docker compose ls --format json | python -c \
-            "import json,sys; print(' '.join(s['Name'] for s in json.load(sys.stdin)))"); do
+          left=$(docker compose ls -a --format json | python -c \
+            "import json,sys; print(' '.join(s['Name'] for s in json.load(sys.stdin) if s['Name'].startswith('nda-ci-')))")
+          if [ -z "$left" ]; then
+            echo "No stack left standing - verify tore its own down and printed its logs above."
+          fi
+          for p in $left; do
             echo "===== $p ====="
-            docker compose -p "$p" logs --tail 200 || true
+            docker compose -p "$p" logs --no-color --tail 300 || true
           done
 
       - name: Always tear down

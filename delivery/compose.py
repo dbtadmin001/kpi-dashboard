@@ -6,6 +6,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def cdc_topics():
+    """The nine CDC topics, derived from the same declaration the SQL is built
+    from - so a new source table cannot arrive without its topic."""
+    from streaming.contracts import table_names
+    return [f"nda.NDAStreaming.dbo.{table}" for table in table_names()]
+
+
 def topology(name, runtime, images, *, production=False, keycloak_url=None):
     if not re.fullmatch(r"nda-(ci-[a-z0-9-]+|staging|production)", name):
         raise ValueError("Use an isolated nda-ci-* project or nda-staging/nda-production")
@@ -76,6 +83,10 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
         # Readiness beyond "listening" is proven at the application level by
         # delivery/wait.py, which is the more honest place for it anyway.
         "iceberg-rest": "bash -c 'exec 3<>/dev/tcp/localhost/8181'",
+        # "started" is not "accepting connections": topic creation raced the
+        # broker and lost, with `connection refused`. rpk ships in this image and
+        # answers the only question that matters - is the Kafka API up.
+        "kafka": "rpk cluster info --brokers localhost:9092",
     }
 
     def service(image, name=None, **kwargs):
@@ -124,7 +135,7 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
             "CATALOG_IO__IMPL": "org.apache.iceberg.aws.s3.S3FileIO",
             "CATALOG_S3_ENDPOINT": "http://minio:9000", "CATALOG_S3_PATH__STYLE__ACCESS": "true",
             "AWS_REGION": "us-east-1"}, mem_limit="1g"),
-        "kafka": service("kafka", command=["redpanda", "start", "--smp=1", "--memory=768M",
+        "kafka": service("kafka", name="kafka", command=["redpanda", "start", "--smp=1", "--memory=768M",
             "--reserve-memory=0M", "--overprovisioned", "--node-id=0", "--check=false",
             "--kafka-addr=0.0.0.0:9092", "--advertise-kafka-addr=nda-kafka:9092"],
             networks={"default": {"aliases": ["nda-kafka"]}}, volumes=["kafka:/var/lib/redpanda/data"], mem_limit="1g"),
@@ -149,6 +160,31 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
             environment={"FLINK_PROPERTIES": flink_properties}, volumes=["flink-state:/opt/flink/state"], mem_limit="1400m"),
         "taskmanager": service("flink", command="taskmanager", env_file=secret_env,
             environment={"FLINK_PROPERTIES": flink_properties}, volumes=["flink-state:/opt/flink/state"], mem_limit="5632m"),
+        # Create the CDC topics before anything reads them.
+        #
+        # Debezium creates a topic when it emits that table's first record, and
+        # on a fresh stack the source tables are empty until the integration step
+        # seeds them - which happens after the SQL job is submitted. So the job
+        # asked for nine topics that did not exist yet, failed submission with
+        # UnknownTopicOrPartitionException, and silver stayed empty until
+        # reconciliation gave up 600 seconds later. Nothing in that sequence
+        # mentions a topic, which is why it read as "Flink is broken".
+        #
+        # Creating them up front removes the ordering dependency entirely: the
+        # source starts on an empty topic and waits, which is what it is for.
+        # The partition count matches topic.creation.default.partitions in the
+        # connector config, so Debezium finds what it would have made.
+        "kafka-init": service("kafka", entrypoint=["/bin/bash", "-lc"], command=[
+            "rpk topic create " + " ".join(cdc_topics()) +
+            " -p 3 -r 1 --brokers nda-kafka:9092 || true; "
+            # `create` reports an existing topic as an error, so the exit code is
+            # not the answer. Whether every topic is there afterwards is.
+            # $$t, not $t: Compose interpolates the file before the shell ever
+            # sees it, so a bare $t arrives empty.
+            "for t in " + " ".join(cdc_topics()) + "; do "
+            "rpk topic describe \"$$t\" --brokers nda-kafka:9092 >/dev/null || "
+            "{ echo \"missing topic $$t\"; exit 1; }; done; echo 'CDC topics ready'"],
+            mem_limit="256m", restart="no"),
         # Submit the SQL StatementSet after the catalog and source have been
         # provisioned.  A JobManager and TaskManager alone do no processing;
         # without this service a green Compose boot still serves empty tables.
@@ -203,7 +239,8 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
         "connect": ["kafka", "sqlserver"],
         "jobmanager": ["kafka", "iceberg-rest", "flink-init"],
         "taskmanager": ["jobmanager"],
-        "flink-sql": ["jobmanager", "taskmanager", "iceberg-rest", "kafka"],
+        "kafka-init": ["kafka"],
+        "flink-sql": ["jobmanager", "taskmanager", "iceberg-rest", "kafka", "kafka-init"],
         "trino": ["iceberg-rest", "keycloak"],
         "audit": ["trino"],
         "api": ["trino", "opa"],
@@ -212,7 +249,8 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
     }
     for name, upstreams in ordering.items():
         s[name]["depends_on"] = {
-            up: {"condition": ("service_completed_successfully" if up == "flink-init"
+            up: {"condition": ("service_completed_successfully"
+                                if up in ("flink-init", "kafka-init")
                                 else "service_healthy" if "healthcheck" in s[up]
                                 else "service_started")}
             for up in upstreams}

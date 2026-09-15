@@ -136,10 +136,15 @@ def verify(keep=False):
         try:
             _run(compose + ["run", "--rm", "--no-deps", "tools"], env=env) # the integration gate
         except subprocess.CalledProcessError:
-            # Reconciliation failures are often downstream of the streaming
-            # submitter. Keep its JVM error in CI before teardown removes it.
-            _run(compose + ["logs", "--no-color", "flink-init", "flink-sql",
-                            "jobmanager", "taskmanager"], env=env, check=False)
+            # Reconciliation failures are almost always downstream of something
+            # that went wrong earlier and quietly: an empty silver table is the
+            # symptom, never the cause. Capture the whole streaming path here,
+            # because the `finally` below removes it moments later and the
+            # workflow's own log step then finds nothing to collect.
+            _run(compose + ["logs", "--no-color", "--tail", "400",
+                            "kafka-init", "flink-init", "flink-sql",
+                            "jobmanager", "taskmanager", "connect", "kafka"],
+                 env=env, check=False)
             raise
         print(f"{chr(10)}Verified {project}")
         return True
