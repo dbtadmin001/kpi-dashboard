@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Infrastructure Catalog</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#eef1f5;--surface:#fff;--surface-2:#f7f9fb;--ink:#0f1720;--ink-2:#3d4a5a;
+  --muted:#697889;--rule:#d3dae3;--rule-2:#e4e9ef;
+  --declared:#a2521c;--declared-soft:#f6ece4;--declared-line:#d6a377;
+  --observed:#1b5c89;--observed-soft:#e6eef5;--observed-line:#87b0cd;
+  --ok:#1a7a46;--warn:#9a6a05;--crit:#a93226;
+  --ok-soft:#e4f2ea;--warn-soft:#f7efdc;--crit-soft:#f8e8e6;
+  --sans:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --cond:"IBM Plex Sans Condensed",var(--sans);
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --ground:#0d1117;--surface:#141a22;--surface-2:#1a212b;--ink:#e7ecf2;--ink-2:#b3bfcd;
+  --muted:#8290a1;--rule:#2a3441;--rule-2:#212a35;
+  --declared:#e08a4e;--declared-soft:#2b1e14;--declared-line:#7a4c23;
+  --observed:#6aaad6;--observed-soft:#12212e;--observed-line:#2d5473;
+  --ok:#57c98a;--warn:#d6a53c;--crit:#e2786b;
+  --ok-soft:#13251c;--warn-soft:#2a2313;--crit-soft:#2c1917;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font:400 14px/1.6 var(--sans)}
+a{color:var(--observed)}
+.app{display:grid;grid-template-columns:200px 1fr;min-height:100vh}
+nav{background:var(--surface);border-right:1px solid var(--rule);padding:16px 12px;display:grid;gap:4px;align-content:start}
+nav h1{font:700 17px/1.2 var(--cond);margin:0 0 4px 6px;letter-spacing:-.01em}
+nav .sub{font:400 11px/1.4 var(--mono);color:var(--muted);margin:0 0 14px 6px}
+nav button{
+  all:unset;cursor:pointer;padding:7px 10px;border-radius:4px;font:500 13px var(--sans);
+  color:var(--ink-2);display:flex;justify-content:space-between;gap:8px;align-items:center;
+}
+nav button:hover{background:var(--surface-2)}
+nav button.on{background:var(--observed-soft);color:var(--observed);font-weight:600}
+nav button b{font:500 11px var(--mono);color:var(--muted)}
+nav .foot{margin-top:18px;padding:10px 6px 0;border-top:1px solid var(--rule-2);font:400 11px/1.5 var(--mono);color:var(--muted)}
+main{padding:22px 24px 60px;min-width:0}
+.head{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.head h2{font:600 24px/1.2 var(--cond);margin:0;letter-spacing:-.01em}
+.head p{margin:0;color:var(--muted);font-size:12.5px;max-width:62ch}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px}
+.tile{background:var(--surface);border:1px solid var(--rule);border-radius:5px;padding:12px 14px;display:grid;gap:3px}
+.tile b{font:600 23px var(--cond);font-variant-numeric:tabular-nums}
+.tile span{font:400 11px var(--mono);color:var(--muted)}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:5px;overflow:hidden;margin-bottom:16px}
+.panel>h3{margin:0;padding:10px 14px;border-bottom:1px solid var(--rule);background:var(--surface-2);font:600 12px var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-2)}
+.panel .body{padding:12px 14px;overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:12.5px;min-width:520px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--rule-2);vertical-align:top}
+th{font:500 10.5px var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--surface-2)}
+td.m{font-family:var(--mono);font-size:11.5px}
+.clickable{cursor:pointer}
+.chip{display:inline-block;padding:1px 6px;border-radius:3px;font:500 10.5px var(--mono);border:1px solid transparent;white-space:nowrap}
+.c-dec{background:var(--declared-soft);color:var(--declared);border-color:var(--declared-line)}
+.c-obs{background:var(--observed-soft);color:var(--observed);border-color:var(--observed-line)}
+.c-ok{background:var(--ok-soft);color:var(--ok)}
+.c-warn{background:var(--warn-soft);color:var(--warn)}
+.c-crit{background:var(--crit-soft);color:var(--crit)}
+.c-n{background:var(--surface-2);color:var(--muted);border-color:var(--rule)}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+input[type=search],select{
+  font:400 13px var(--sans);padding:6px 9px;border:1px solid var(--rule);border-radius:4px;
+  background:var(--surface);color:var(--ink);min-width:0;
+}
+input[type=search]{flex:1 1 240px}
+.facets{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px}
+.facets button{all:unset;cursor:pointer}
+.facets .chip:hover{border-color:var(--observed)}
+svg.g{width:100%;height:auto;display:block;background:var(--surface-2);border-radius:4px}
+svg.g text{font:11px var(--mono);fill:var(--ink)}
+svg.g .n{cursor:pointer}
+svg.g .n:hover rect{stroke:var(--observed);stroke-width:2}
+.detail{position:fixed;inset:auto 0 0 auto;top:0;width:min(460px,92vw);background:var(--surface);border-left:1px solid var(--rule);padding:18px;overflow:auto;box-shadow:-8px 0 32px -16px rgba(0,0,0,.3);z-index:20}
+.detail h3{font:600 17px var(--cond);margin:0 0 2px}
+.detail .urn{font:400 11px var(--mono);color:var(--muted);word-break:break-all;margin-bottom:12px}
+.detail dl{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:12.5px;margin:0 0 14px}
+.detail dt{font:500 11px var(--mono);color:var(--muted)}
+.detail dd{margin:0;word-break:break-word}
+.detail pre{background:var(--surface-2);border:1px solid var(--rule);border-radius:4px;padding:10px;font:400 11px/1.5 var(--mono);overflow:auto;max-height:240px;margin:0 0 12px}
+.close{all:unset;cursor:pointer;float:right;font:500 12px var(--mono);color:var(--muted);padding:2px 6px;border-radius:3px}
+.close:hover{background:var(--surface-2)}
+.muted{color:var(--muted)}
+.empty{padding:28px;text-align:center;color:var(--muted);font-size:13px}
+.bar{height:6px;border-radius:3px;background:var(--rule-2);overflow:hidden;min-width:70px}
+.bar i{display:block;height:100%}
+@media(max-width:820px){.app{grid-template-columns:1fr}nav{border-right:0;border-bottom:1px solid var(--rule);display:flex;flex-wrap:wrap}nav h1,nav .sub,nav .foot{width:100%}}
+:focus-visible{outline:2px solid var(--observed);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav>
+    <h1>Infrastructure Catalog</h1>
+    <p class="sub" id="freshness">loading…</p>
+    <button data-view="overview" class="on">Overview</button>
+    <button data-view="inventory">Inventory <b id="n-inv"></b></button>
+    <button data-view="graph">Dependency graph</button>
+    <button data-view="access">Access control</button>
+    <button data-view="capacity">Health &amp; capacity</button>
+    <button data-view="impact">Change impact</button>
+    <button data-view="audit">Audit</button>
+    <div class="foot">
+      read-only · never provisions<br>
+      <span id="authmode"></span>
+    </div>
+  </nav>
+  <main id="main"><div class="empty">Loading catalog…</div></main>
+</div>
+<div id="detail"></div>
+
+<script>
+const $ = (s,r=document)=>r.querySelector(s);
+const api = async p => (await fetch(p)).json();
+const esc = s => String(s??"").replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let STATS=null, VIEW="overview", FILTER={};
+
+const DECLARED = new Set(["terraform","marketplace"]);
+const chipFor = r => DECLARED.has(r.provider)
+  ? `<span class="chip c-dec">${esc(r.provider)}</span>`
+  : `<span class="chip c-obs">${esc(r.provider)}</span>`;
+const statusChip = s => {
+  const v=String(s||"").toLowerCase();
+  const cls = /ok|running|healthy|ready|enabled|active|certified|managed|enforced/.test(v) ? "c-ok"
+            : /stop|fail|denied|disabled|crit/.test(v) ? "c-crit"
+            : /declared|unknown|planned/.test(v) ? "c-n" : "c-warn";
+  return `<span class="chip ${cls}">${esc(s||"?")}</span>`;
+};
+
+async function boot(){
+  STATS = await api("/v1/stats");
+  $("#n-inv").textContent = STATS.resources;
+  $("#authmode").textContent = "auth: " + STATS.auth;
+  const newest = Math.max(...STATS.collectors.map(c=>c.finished||0));
+  const age = Math.round((Date.now()/1000 - newest)/60);
+  $("#freshness").textContent = `${STATS.resources} resources · observed ${age}m ago`;
+  render();
+}
+document.querySelectorAll("nav button[data-view]").forEach(b=>{
+  b.onclick = ()=>{
+    document.querySelectorAll("nav button").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); VIEW=b.dataset.view; render();
+  };
+});
+
+async function render(){
+  const m = $("#main");
+  m.innerHTML = `<div class="empty">Loading…</div>`;
+  try{ await ({overview,inventory,graph,access,capacity,impact,audit}[VIEW])(m); }
+  catch(e){ m.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+/* ---------------- overview ---------------- */
+async function overview(m){
+  const health = await api("/v1/health");
+  const bad = health.collectors.filter(c=>!c.ok);
+  m.innerHTML = `
+    <div class="head"><div><h2>Overview</h2>
+      <p>Everything the collectors could see, joined into one graph. Terraform and the platform
+         declare; Docker, Kubernetes, Trino, MinIO and Keycloak are observed.</p></div></div>
+    <div class="tiles">
+      <div class="tile"><b>${STATS.resources}</b><span>resources</span></div>
+      <div class="tile"><b>${STATS.edges}</b><span>relationships</span></div>
+      <div class="tile"><b>${STATS.aliases}</b><span>identity aliases</span></div>
+      <div class="tile"><b>${STATS.stale}</b><span>stale</span></div>
+      <div class="tile"><b>${bad.length?bad.length:health.collectors.length}</b>
+        <span>${bad.length?"collectors failing":"collectors healthy"}</span></div>
+    </div>
+    <div class="panel"><h3>by provider</h3><div class="body"><table><tbody>
+      ${STATS.by_provider.map(p=>`<tr class="clickable" onclick="jump('provider','${esc(p.value)}')">
+        <td>${chipFor({provider:p.value})}</td>
+        <td class="m">${esc(p.value)}</td>
+        <td style="width:50%"><div class="bar"><i style="width:${(p.n/STATS.resources*100).toFixed(1)}%;background:var(--observed)"></i></div></td>
+        <td class="m" style="text-align:right">${p.n}</td></tr>`).join("")}
+    </tbody></table></div></div>
+    <div class="panel"><h3>collectors</h3><div class="body"><table>
+      <thead><tr><th>plugin</th><th>state</th><th>detail</th><th>resources</th></tr></thead><tbody>
+      ${health.collectors.map(c=>{
+        const run = health.runs.find(r=>r.plugin===c.plugin)||{};
+        return `<tr><td class="m">${esc(c.plugin)}</td><td>${statusChip(c.ok?"ok":"failed")}</td>
+          <td class="muted">${esc(c.detail)}</td><td class="m">${run.entities??"–"}</td></tr>`;
+      }).join("")}
+    </tbody></table></div></div>
+    <div class="panel"><h3>by kind</h3><div class="body"><table><tbody>
+      ${STATS.by_kind.slice(0,18).map(k=>`<tr class="clickable" onclick="jump('kind','${esc(k.value)}')">
+        <td class="m">${esc(k.value)}</td><td class="m" style="text-align:right">${k.n}</td></tr>`).join("")}
+    </tbody></table></div></div>`;
+}
+function jump(key,value){
+  FILTER={[key]:value};
+  document.querySelectorAll("nav button").forEach(x=>x.classList.remove("on"));
+  document.querySelector('nav button[data-view=inventory]').classList.add("on");
+  VIEW="inventory"; render();
+}
+
+/* ---------------- inventory ---------------- */
+async function inventory(m){
+  const qs = new URLSearchParams({limit:400, ...FILTER});
+  const data = await api("/v1/resources?"+qs);
+  m.innerHTML = `
+    <div class="head"><div><h2>Resource inventory</h2>
+      <p>${data.total} resources. Facets first — most searches are “everything of kind X”.</p></div></div>
+    <div class="controls">
+      <input type="search" id="q" placeholder="search name, urn or scope…" value="${esc(FILTER.q||"")}">
+      <button class="chip c-n" onclick="FILTER={};render()">clear filters</button>
+    </div>
+    <div class="facets" id="facets"></div>
+    <div class="panel"><div class="body"><table>
+      <thead><tr><th>kind</th><th>name</th><th>scope</th><th>owner</th><th>status</th><th>source</th></tr></thead>
+      <tbody>${data.items.map(r=>`<tr class="clickable" onclick="showDetail('${esc(r.urn)}')">
+        <td class="m">${esc(r.kind)}</td><td>${esc(r.name).slice(0,64)}</td>
+        <td class="m muted">${esc(r.scope)}</td><td class="m muted">${esc(r.owner||"—")}</td>
+        <td>${statusChip(r.status)}</td><td>${chipFor(r)}</td></tr>`).join("")}
+      </tbody></table>${data.items.length?"":'<div class="empty">Nothing matches.</div>'}</div></div>`;
+
+  const f = $("#facets");
+  ["kind","provider","scope","owner"].forEach(key=>{
+    (data.facets[key]||[]).slice(0,10).forEach(v=>{
+      const on = FILTER[key]===v.value;
+      f.insertAdjacentHTML("beforeend",
+        `<button onclick="toggle('${key}','${esc(v.value)}')"><span class="chip ${on?'c-obs':'c-n'}">${esc(key)}: ${esc(v.value)} ${v.count}</span></button>`);
+    });
+  });
+  $("#q").oninput = e => { FILTER.q = e.target.value || undefined; clearTimeout(window._t);
+    window._t = setTimeout(render, 280); };
+}
+function toggle(k,v){ FILTER[k] = FILTER[k]===v ? undefined : v; render(); }
+
+/* ---------------- graph ---------------- */
+async function graph(m, focus){
+  focus = focus || window._focus || "urn:infra:minio:bucket:default/warehouse";
+  window._focus = focus;
+  const depth = window._depth || 2;
+  const data = await api(`/v1/graph/neighbors?urn=${encodeURIComponent(focus)}&depth=${depth}`);
+  m.innerHTML = `
+    <div class="head"><div><h2>Dependency graph</h2>
+      <p>Expanded from one node, never the whole estate. Click any node to re-centre.</p></div></div>
+    <div class="controls">
+      <select id="pick">${(await api("/v1/resources?limit=400")).items
+        .map(r=>`<option value="${esc(r.urn)}" ${r.urn===focus?"selected":""}>${esc(r.kind)} · ${esc(r.name).slice(0,52)}</option>`).join("")}</select>
+      <select id="depth">${[1,2,3].map(d=>`<option ${d==depth?"selected":""}>${d}</option>`).join("")}</select>
+      <span class="muted" style="font:400 12px var(--mono)">${data.nodes.length} nodes · ${data.edges.length} edges</span>
+    </div>
+    <div class="panel"><div class="body" id="gbox"></div></div>`;
+  $("#pick").onchange = e => { window._focus = e.target.value; render(); };
+  $("#depth").onchange = e => { window._depth = +e.target.value; render(); };
+  drawGraph($("#gbox"), data, focus);
+}
+
+function drawGraph(box, data, focus){
+  const nodes = data.nodes, edges = data.edges;
+  if(!nodes.length){ box.innerHTML = '<div class="empty">Nothing linked here yet.</div>'; return; }
+  // Rings: focus at centre, everything else by hop distance from it.
+  const dist = new Map([[focus,0]]);
+  let frontier = [focus];
+  for(let d=1; d<=3 && frontier.length; d++){
+    const next=[];
+    edges.forEach(e=>{
+      if(dist.get(e.src)===d-1 && !dist.has(e.dst)){ dist.set(e.dst,d); next.push(e.dst); }
+      if(dist.get(e.dst)===d-1 && !dist.has(e.src)){ dist.set(e.src,d); next.push(e.src); }
+    });
+    frontier=next;
+  }
+  const rings={};
+  nodes.forEach(n=>{ const d=dist.get(n.urn)??3; (rings[d]=rings[d]||[]).push(n); });
+  const W=920, cx=W/2, R=[0,150,265,360];
+  const H = 2*(R[3]+60);
+  const pos=new Map();
+  Object.entries(rings).forEach(([d,list])=>{
+    const r=R[Math.min(+d,3)];
+    list.forEach((n,i)=>{
+      const a = (i/list.length)*Math.PI*2 - Math.PI/2;
+      pos.set(n.urn, r===0?{x:cx,y:H/2}:{x:cx+r*Math.cos(a), y:H/2+r*0.62*Math.sin(a)});
+    });
+  });
+  const line = edges.map(e=>{
+    const a=pos.get(e.src), b=pos.get(e.dst); if(!a||!b) return "";
+    const faint = (e.confidence??1) < 0.8;
+    return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="var(--muted)"
+      stroke-width="${faint?1:1.3}" stroke-dasharray="${faint?'4 3':'0'}" opacity=".45"><title>${esc(e.type)} (${e.rule})</title></line>`;
+  }).join("");
+  const box_ = nodes.map(n=>{
+    const p=pos.get(n.urn); if(!p) return "";
+    const isFocus = n.urn===focus;
+    const dec = DECLARED.has(n.provider);
+    const label = n.name.length>26 ? n.name.slice(0,25)+"…" : n.name;
+    const w = Math.max(90, label.length*6.6+16);
+    return `<g class="n" onclick="recenter('${esc(n.urn)}')"><title>${esc(n.kind)} · ${esc(n.name)}</title>
+      <rect x="${p.x-w/2}" y="${p.y-14}" width="${w}" height="28" rx="3"
+        fill="${isFocus?'var(--observed)':(dec?'var(--declared-soft)':'var(--surface)')}"
+        stroke="${isFocus?'var(--observed)':(dec?'var(--declared-line)':'var(--rule)')}" stroke-width="${isFocus?2:1}"/>
+      <text x="${p.x}" y="${p.y+4}" text-anchor="middle"
+        fill="${isFocus?'#fff':(dec?'var(--declared)':'var(--ink)')}">${esc(label)}</text></g>`;
+  }).join("");
+  box.innerHTML = `<svg class="g" viewBox="0 0 ${W} ${H}">${line}${box_}</svg>
+    <p class="muted" style="font:400 11px var(--mono);margin:8px 0 0">
+      dashed edge = low-confidence join (conventional rule)</p>`;
+}
+function recenter(urn){ window._focus = urn; render(); }
+
+/* ---------------- access ---------------- */
+async function access(m){
+  const data = await api("/v1/access/principals");
+  m.innerHTML = `
+    <div class="head"><div><h2>Access control</h2>
+      <p>Who exists, which group they are in, and the role that group carries into the warehouse.</p></div></div>
+    <div class="panel"><h3>groups → role</h3><div class="body"><table>
+      <thead><tr><th>group</th><th>trino role</th><th>members</th><th>description</th></tr></thead><tbody>
+      ${data.groups.map(g=>`<tr class="clickable" onclick="showDetail('${esc(g.urn)}')">
+        <td class="m">${esc(g.name)}</td>
+        <td>${g.attributes.trino_role?`<span class="chip c-obs">${esc(g.attributes.trino_role)}</span>`:'<span class="muted">—</span>'}</td>
+        <td class="m">${data.users.filter(u=>u.owner===g.name).length}</td>
+        <td class="muted">${esc((g.attributes.description||"").slice(0,70))}</td></tr>`).join("")}
+    </tbody></table></div></div>
+    <div class="panel"><h3>users</h3><div class="body"><table>
+      <thead><tr><th>user</th><th>group</th><th>status</th><th>email</th></tr></thead><tbody>
+      ${data.users.map(u=>`<tr class="clickable" onclick="effective('${esc(u.name)}')">
+        <td class="m">${esc(u.name)}</td><td class="m muted">${esc(u.owner||"—")}</td>
+        <td>${statusChip(u.status)}</td><td class="muted">${esc(u.attributes.email||"")}</td></tr>`).join("")}
+    </tbody></table></div></div>`;
+}
+async function effective(name){
+  const d = await api("/v1/access/effective?principal="+encodeURIComponent(name));
+  openPanel(`<h3>${esc(d.principal)}</h3><div class="urn">${esc(d.urn)}</div>
+    <p class="muted" style="font-size:12px">Everything reachable from this principal, with the hop count that produced it.</p>
+    <table><thead><tr><th>hops</th><th>kind</th><th>grants</th></tr></thead><tbody>
+    ${d.paths.map(p=>`<tr><td class="m">${p.hops}</td><td class="m">${esc(p.kind)}</td>
+      <td>${esc(p.name||p.urn)}</td></tr>`).join("")||'<tr><td colspan="3" class="muted">No grants resolved.</td></tr>'}
+    </tbody></table>`);
+}
+
+/* ---------------- capacity ---------------- */
+async function capacity(m){
+  const c = await api("/v1/capacity");
+  m.innerHTML = `
+    <div class="head"><div><h2>Health &amp; capacity</h2>
+      <p>${esc(c.note)}</p></div></div>
+    <div class="tiles">
+      <div class="tile"><b>${c.containers.running}/${c.containers.total}</b><span>containers running</span></div>
+      <div class="tile"><b>${c.containers.unhealthy}</b><span>not healthy</span></div>
+      <div class="tile"><b>${c.volumes.count}</b><span>volumes</span></div>
+      <div class="tile"><b>${c.buckets.length}</b><span>buckets</span></div>
+    </div>
+    <div class="panel"><h3>object storage (sampled)</h3><div class="body"><table>
+      <thead><tr><th>bucket</th><th>objects</th><th>size</th></tr></thead><tbody>
+      ${c.buckets.map(b=>`<tr><td class="m">${esc(b.name)}</td><td class="m">${b.objects??"–"}</td>
+        <td class="m">${b.bytes?(b.bytes/1048576).toFixed(1)+" MiB":"–"}</td></tr>`).join("")}
+    </tbody></table></div></div>
+    <div class="panel"><h3>containers with restarts</h3><div class="body"><table>
+      <thead><tr><th>container</th><th>restarts</th></tr></thead><tbody>
+      ${c.restarts.map(r=>`<tr><td class="m">${esc(r.name)}</td>
+        <td>${r.restarts>3?statusChip("crit"):statusChip("warn")} <span class="m">${r.restarts}</span></td></tr>`).join("")
+        ||'<tr><td colspan="2" class="muted">No container has restarted.</td></tr>'}
+    </tbody></table></div></div>`;
+}
+
+/* ---------------- impact ---------------- */
+async function impact(m){
+  const list = (await api("/v1/resources?provider=terraform&kind=state_resource&limit=200")).items;
+  const urn = window._impact || (list[0]||{}).urn;
+  window._impact = urn;
+  const d = urn ? await api(`/v1/graph/impact?urn=${encodeURIComponent(urn)}&direction=downstream`) : {items:[],count:0,low_confidence:0};
+  m.innerHTML = `
+    <div class="head"><div><h2>Change impact</h2>
+      <p>Pick a Terraform resource. Everything below depends on it, ordered by distance.</p></div></div>
+    <div class="controls">
+      <select id="pickimp">${list.map(r=>`<option value="${esc(r.urn)}" ${r.urn===urn?"selected":""}>${esc(r.name)}</option>`).join("")}</select>
+    </div>
+    <div class="tiles">
+      <div class="tile"><b>${d.count}</b><span>resources affected</span></div>
+      <div class="tile"><b>${d.items.length?Math.max(...d.items.map(i=>i.hops)):0}</b><span>max hops</span></div>
+      <div class="tile"><b>${d.low_confidence}</b><span>low-confidence joins</span></div>
+    </div>
+    <div class="panel"><div class="body"><table>
+      <thead><tr><th>hops</th><th>kind</th><th>name</th><th>via</th><th>confidence</th></tr></thead><tbody>
+      ${d.items.map(i=>`<tr class="clickable" onclick="showDetail('${esc(i.urn)}')">
+        <td class="m">${i.hops}</td><td class="m">${esc(i.kind||"?")}</td>
+        <td>${esc((i.name||i.urn)).slice(0,60)}</td><td class="m muted">${esc(i.type)}</td>
+        <td>${(i.confidence??1)<0.8?'<span class="chip c-warn">'+i.confidence+'</span>':'<span class="chip c-ok">'+(i.confidence??1)+'</span>'}</td>
+      </tr>`).join("")||'<tr><td colspan="5" class="muted">Nothing depends on this.</td></tr>'}
+    </tbody></table></div></div>`;
+  $("#pickimp").onchange = e => { window._impact = e.target.value; render(); };
+}
+
+/* ---------------- audit ---------------- */
+async function audit(m){
+  const d = await api("/v1/audit?limit=200");
+  m.innerHTML = `
+    <div class="head"><div><h2>Audit</h2>
+      <p>Every request to this catalog, recorded whether or not a principal was proven.</p></div></div>
+    <div class="panel"><div class="body"><table>
+      <thead><tr><th>when</th><th>principal</th><th>action</th><th>query</th></tr></thead><tbody>
+      ${d.entries.map(e=>`<tr><td class="m muted">${new Date(e.at*1000).toLocaleTimeString()}</td>
+        <td class="m">${esc(e.principal)}</td><td class="m">${esc(e.action)}</td>
+        <td class="muted m">${esc((e.target||"").slice(0,60))}</td></tr>`).join("")}
+    </tbody></table></div></div>`;
+}
+
+/* ---------------- detail drawer ---------------- */
+async function showDetail(urn){
+  const r = await api("/v1/resources/"+urn);
+  openPanel(`
+    <h3>${esc(r.name)}</h3><div class="urn">${esc(r.urn)}</div>
+    <dl>
+      <dt>kind</dt><dd>${esc(r.kind)}</dd>
+      <dt>provider</dt><dd>${chipFor(r)}</dd>
+      <dt>scope</dt><dd class="m">${esc(r.scope)}</dd>
+      <dt>owner</dt><dd>${esc(r.owner||"—")}</dd>
+      <dt>status</dt><dd>${statusChip(r.status)}</dd>
+      <dt>observed</dt><dd>${new Date(r.observed_at*1000).toLocaleString()}</dd>
+    </dl>
+    ${r.aliases.length?`<h4 style="font:600 12px var(--mono);color:var(--muted);margin:0 0 6px">ALSO KNOWN AS</h4>
+      <pre>${r.aliases.map(a=>esc(a.key)+"   "+esc(a.rule)).join("\n")}</pre>`:""}
+    <h4 style="font:600 12px var(--mono);color:var(--muted);margin:0 0 6px">RELATIONSHIPS</h4>
+    <pre>${[...r.edges_out.map(e=>`→ ${e.type}  ${e.dst}`),
+            ...r.edges_in.map(e=>`← ${e.type}  ${e.src}`)].map(esc).join("\n")||"none"}</pre>
+    <h4 style="font:600 12px var(--mono);color:var(--muted);margin:0 0 6px">ATTRIBUTES</h4>
+    <pre>${esc(JSON.stringify(r.attributes,null,1)).slice(0,2600)}</pre>
+    <button class="chip c-obs" style="cursor:pointer" onclick="recenter('${esc(r.urn)}');closePanel();document.querySelector('nav button[data-view=graph]').click()">open in graph</button>
+  `);
+}
+function openPanel(html){
+  $("#detail").className="detail";
+  $("#detail").innerHTML = `<button class="close" onclick="closePanel()">close ✕</button>`+html;
+}
+function closePanel(){ $("#detail").className=""; $("#detail").innerHTML=""; }
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closePanel(); });
+
+boot();
+</script>
+</body>
+</html>
