@@ -10,7 +10,9 @@ name: CI
 # then the unit suite, then a real stack with real engines.
 on:
   push:
-    branches: [master, production]
+    # Work on master is validated by its pull request to production. Running
+    # both events duplicated the costly real-engine job for every PR commit.
+    branches: [production]
   pull_request:
   workflow_dispatch:
 

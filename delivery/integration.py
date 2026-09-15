@@ -206,7 +206,12 @@ def main():
     # deliberately replayed below to prove the committed checkpoint is
     # idempotent rather than merely proving a one-shot backfill.
     ingest()
-    until("source/silver/gold reconciliation", reconcile, timeout=600)
+    # A healthy local engine delivers this deterministic batch promptly. Keep a
+    # production-safe default, while allowing a short local diagnostic run
+    # instead of repeatedly waiting ten minutes for the same infrastructure
+    # failure.
+    until("source/silver/gold reconciliation", reconcile,
+          timeout=int(os.environ.get("NDA_RECONCILE_TIMEOUT", "180")))
     from streaming.bootstrap import gold
     from marketplace.build import apply
     gold()

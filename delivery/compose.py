@@ -105,6 +105,10 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
         "state.backend.type: rocksdb", "state.checkpoints.dir: file:///opt/flink/state/checkpoints",
         "state.savepoints.dir: file:///opt/flink/state/savepoints",
         "execution.checkpointing.interval: 60s",
+        # A single-node session cluster has one durable Docker volume. Full
+        # checkpoints are reliable there; RocksDB incremental checkpoints use
+        # a shared-state directory that is intended for a distributed store.
+        "execution.checkpointing.incremental: false",
         "execution.checkpointing.externalized-checkpoint-retention: RETAIN_ON_CANCELLATION",
     ])
     s = {
