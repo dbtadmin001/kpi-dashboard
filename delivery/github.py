@@ -167,22 +167,24 @@ def protect(repo=None, reviewers=1):
         "restrictions": None,
         "allow_force_pushes": False,
         "allow_deletions": False,
-        # NOT linear history, deliberately.
+        # Linear history stays ON, and squash-merging stays the way releases
+        # land: production then reads as one commit per release, which is what
+        # you want to look at when something is wrong in production.
         #
-        # Linear history forbids merge commits, so GitHub hides "Create a merge
-        # commit" and leaves only squash and rebase. Both of those rewrite the
-        # commits as they land, giving production copies with new identities
-        # that git cannot match to the originals on master. The branches then
-        # diverge the instant a release lands, and the NEXT pull request opens
-        # conflicted - which is not merely inconvenient: GitHub builds a merge
-        # ref to run `pull_request` workflows against, cannot build one for a
-        # conflicted PR, and so runs no CI at all. A release branch that
-        # silently stops testing is a worse outcome than a merge commit in the
-        # log. That is exactly what happened to PR #2.
+        # What squashing costs is ancestry. The squash commit holds master's
+        # changes under a new identity, git cannot match it to the commits it
+        # came from, and the branches diverge the moment a release lands. The
+        # next pull request then opens conflicted - and GitHub builds a merge ref
+        # to run `pull_request` workflows against, cannot build one for a
+        # conflicted PR, and runs NO CI at all. PR #2 sat with zero checks for
+        # exactly that reason, with nothing on the page to say why. A release
+        # branch that silently stops testing looks identical to one that passes.
         #
-        # A promotion branch wants ordinary merges: production keeps master's
-        # commits, with their identities, and the two never drift.
-        "required_linear_history": False,
+        # .github/workflows/reconnect.yml pays that cost automatically: after
+        # every push to production it records the ancestry on master, changing
+        # no file, and refuses loudly if production ever holds something master
+        # does not. So the property is kept and the trap is closed.
+        "required_linear_history": True,
         "required_conversation_resolution": True,
     }
     _gh("api", "--method", "PUT", f"/repos/{repo}/branches/production/protection",
