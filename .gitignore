@@ -61,3 +61,6 @@ delivery/images.built.json
 **/secrets.env
 delivery/vendor/
 .ci/
+
+# The catalog's own database. Rebuilt by `python -m catalog.cli collect`.
+catalog/catalog.db*

@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Infrastructure Catalog</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#f4f6f9; --panel:#fff; --panel-2:#fafbfd; --sunken:#eef1f6;
+  --ink:#141b26; --ink-2:#44536a; --soft:#7c8ba1; --line:#dfe5ee; --line-2:#ecf0f6;
+
+  /* Two meanings, kept apart everywhere:
+     amber = something Terraform or a declaration defines
+     teal  = something a collector observed running */
+  --dec:#9a5b12; --dec-bg:#fdf2e3; --dec-line:#e7c191;
+  --obs:#0f6b76; --obs-bg:#e2f2f3; --obs-line:#8ec8cd;
+  --accent:#2f5fd0; --accent-bg:#e8eefb;
+
+  --ok:#15764a; --ok-bg:#e3f3ea;
+  --warn:#8a6410; --warn-bg:#faf0d9;
+  --bad:#a6342b; --bad-bg:#fae9e7;
+
+  --r:7px;
+  --sh:0 1px 2px rgba(20,27,38,.05),0 10px 26px -20px rgba(20,27,38,.35);
+  --sans:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#0b0f15; --panel:#141a23; --panel-2:#18202b; --sunken:#10161e;
+  --ink:#e8edf4; --ink-2:#b0bdcd; --soft:#7d8b9f;
+  --line:#26303d; --line-2:#1d2631;
+  --dec:#e59c53; --dec-bg:#2a1d10; --dec-line:#7a5426;
+  --obs:#54b8c2; --obs-bg:#0f2529; --obs-line:#2b5a60;
+  --accent:#6f9bf0; --accent-bg:#152238;
+  --ok:#52c98d; --ok-bg:#112318; --warn:#d7a53f; --warn-bg:#241d0e; --bad:#e0796d; --bad-bg:#26150f;
+  --sh:0 1px 2px rgba(0,0,0,.5),0 10px 26px -20px rgba(0,0,0,.9);
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 14px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+button{font-family:inherit}
+
+/* ---- shell ---- */
+.shell{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+aside{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;gap:2px;padding:16px 12px 20px}
+.brand{display:flex;align-items:center;gap:9px;padding:2px 6px 4px}
+.brand .mark{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--obs),var(--accent));flex:none}
+.brand h1{font:700 15px/1.2 var(--sans);margin:0;letter-spacing:-.01em}
+.fresh{font:400 11px/1.5 var(--mono);color:var(--soft);padding:0 6px 12px}
+.navlabel{font:600 10px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--soft);padding:12px 6px 5px}
+aside button{
+  all:unset;cursor:pointer;display:flex;align-items:center;gap:9px;
+  padding:7px 9px;border-radius:6px;color:var(--ink-2);font-size:13.5px;
+}
+aside button:hover{background:var(--sunken)}
+aside button.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+aside button .n{margin-left:auto;font:500 11px var(--mono);color:var(--soft)}
+aside button.on .n{color:var(--accent)}
+.foot{margin-top:auto;padding:12px 6px 0;border-top:1px solid var(--line-2);font:400 11px/1.6 var(--mono);color:var(--soft)}
+main{padding:24px 28px 72px;min-width:0}
+
+/* ---- headers ---- */
+.page{margin-bottom:20px}
+.page h2{font:600 26px/1.2 var(--sans);margin:0 0 5px;letter-spacing:-.02em}
+.page p{margin:0;color:var(--ink-2);font-size:13.5px;max-width:74ch}
+
+/* ---- tiles ---- */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;gap:4px;box-shadow:var(--sh)}
+.tile b{font:600 26px/1.1 var(--sans);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.tile span{font-size:12px;color:var(--soft)}
+.tile.lift{border-left:3px solid var(--accent)}
+
+/* ---- group cards ---- */
+.groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:12px;margin-bottom:20px}
+.gcard{all:unset;cursor:pointer;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:15px 16px;display:grid;gap:5px;box-shadow:var(--sh)}
+.gcard:hover{border-color:var(--accent)}
+.gcard .top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.gcard h3{font:600 14.5px var(--sans);margin:0}
+.gcard .n{font:600 19px var(--sans);font-variant-numeric:tabular-nums;color:var(--accent)}
+.gcard p{margin:0;font-size:12px;color:var(--soft);line-height:1.5}
+
+/* ---- panels & tables ---- */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:16px;box-shadow:var(--sh)}
+.panel>header{padding:11px 16px;border-bottom:1px solid var(--line);background:var(--panel-2);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.panel>header h3{font:600 13px var(--sans);margin:0}
+.panel>header .hint{font-size:12px;color:var(--soft)}
+.panel .body{padding:0;overflow-x:auto}
+.panel .body.pad{padding:14px 16px}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:560px}
+th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+th{font:600 11px var(--sans);letter-spacing:.04em;text-transform:uppercase;color:var(--soft);white-space:nowrap;background:var(--panel-2)}
+tr:last-child td{border-bottom:0}
+tbody tr.click{cursor:pointer}
+tbody tr.click:hover{background:var(--sunken)}
+td.id{font-family:var(--mono);font-size:11.5px;color:var(--soft)}
+td .nm{font-weight:500}
+
+/* ---- pills ---- */
+.pill{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:20px;font-size:11.5px;font-weight:500;border:1px solid transparent;white-space:nowrap}
+.p-dec{background:var(--dec-bg);color:var(--dec);border-color:var(--dec-line)}
+.p-obs{background:var(--obs-bg);color:var(--obs);border-color:var(--obs-line)}
+.p-ok{background:var(--ok-bg);color:var(--ok)}
+.p-warn{background:var(--warn-bg);color:var(--warn)}
+.p-bad{background:var(--bad-bg);color:var(--bad)}
+.p-n{background:var(--sunken);color:var(--soft);border-color:var(--line)}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+
+/* ---- controls ---- */
+.bar{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+input[type=search],select{
+  font:400 13.5px var(--sans);padding:8px 11px;border:1px solid var(--line);border-radius:6px;
+  background:var(--panel);color:var(--ink);
+}
+input[type=search]{flex:1 1 260px;min-width:0}
+input[type=search]:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.chips button{all:unset;cursor:pointer}
+.linkish{all:unset;cursor:pointer;color:var(--accent);font-size:12.5px;font-weight:500}
+.linkish:hover{text-decoration:underline}
+
+/* ---- pipeline ---- */
+.pipeline{display:flex;align-items:stretch;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.stage{flex:1 1 200px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;gap:5px;align-content:start;box-shadow:var(--sh)}
+.stage.live{border-left:3px solid var(--ok)}
+.stage-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.stage-h h3{font:600 14px var(--sans);margin:0;text-transform:capitalize}
+.stage .art{font:500 13px var(--mono)}
+.stage .meta{font-size:12px;color:var(--soft)}
+.arrow{align-self:center;color:var(--soft);font-size:19px}
+
+/* ---- graph ---- */
+svg.g{width:100%;height:auto;display:block;background:var(--sunken)}
+svg.g text{font:500 11px var(--sans);fill:var(--ink)}
+svg.g .n{cursor:pointer}
+svg.g .n:hover rect{stroke:var(--accent);stroke-width:2.2}
+
+/* ---- drawer ---- */
+#drawer{position:fixed;inset:0 0 0 auto;width:min(500px,94vw);background:var(--panel);border-left:1px solid var(--line);overflow:auto;box-shadow:-10px 0 40px -22px rgba(0,0,0,.45);z-index:30;display:none;padding:20px 22px 40px}
+#drawer.open{display:block}
+#drawer h3{font:600 19px var(--sans);margin:0 0 3px;letter-spacing:-.01em}
+#drawer .rid{font:400 11px var(--mono);color:var(--soft);word-break:break-all;margin-bottom:16px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:13px;margin-bottom:18px}
+.kv dt{color:var(--soft);font-size:12px}
+.kv dd{margin:0;word-break:break-word}
+.sect{font:600 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--soft);margin:0 0 8px}
+.rel{display:grid;gap:6px;margin-bottom:18px}
+.relrow{display:flex;gap:8px;align-items:baseline;font-size:12.5px;padding:7px 10px;background:var(--sunken);border-radius:6px}
+.relrow em{font-style:normal;color:var(--soft);white-space:nowrap}
+.relrow b{font-weight:500;word-break:break-word}
+pre{background:var(--sunken);border:1px solid var(--line-2);border-radius:6px;padding:11px;font:400 11.5px/1.55 var(--mono);overflow:auto;max-height:260px;margin:0 0 18px;color:var(--ink-2)}
+.x{all:unset;cursor:pointer;float:right;font-size:12.5px;color:var(--soft);padding:3px 8px;border-radius:5px}
+.x:hover{background:var(--sunken)}
+.empty{padding:40px;text-align:center;color:var(--soft);font-size:13.5px}
+.meter{height:7px;border-radius:4px;background:var(--line-2);overflow:hidden;min-width:80px}
+.meter i{display:block;height:100%;border-radius:4px}
+.soft{color:var(--soft)}
+@media(max-width:880px){
+  .shell{grid-template-columns:1fr}
+  aside{border-right:0;border-bottom:1px solid var(--line)}
+  main{padding:18px 16px 60px}
+}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside>
+    <div class="brand"><span class="mark"></span><h1>Infrastructure</h1></div>
+    <p class="fresh" id="fresh">Loading…</p>
+
+    <div class="navlabel">Explore</div>
+    <button data-v="home" class="on">Home</button>
+    <button data-v="ship">Deployments</button>
+    <button data-v="all">All resources <span class="n" id="n-all"></span></button>
+    <button data-v="map">Relationship map</button>
+    <button data-v="who">Who has access</button>
+    <button data-v="health">Health</button>
+    <button data-v="blast">Change impact</button>
+    <button data-v="activity">Activity</button>
+
+    <div class="navlabel">Resource groups</div>
+    <div id="groupnav"></div>
+
+    <div class="foot">Read-only.<br>Never changes infrastructure.<br><span id="authnote"></span></div>
+  </aside>
+  <main id="main"><div class="empty">Loading your infrastructure…</div></main>
+</div>
+<div id="drawer"></div>
+
+<script>
+const $=(s,r=document)=>r.querySelector(s);
+const api=async p=>{const r=await fetch(p); if(!r.ok) throw new Error(`${r.status} on ${p}`); return r.json();};
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let S=null, V="home", F={}, VOCAB={groups:[],edges:{},sources:{},kinds:{}};
+
+const DECLARERS=new Set(["terraform","marketplace"]);
+const typeOf=r=>VOCAB.kinds[r.kind]||r.kind;
+const sourceOf=r=>VOCAB.sources[r.provider]||r.provider;
+const originPill=r=>DECLARERS.has(r.provider)
+  ? `<span class="pill p-dec"><span class="dot"></span>${esc(sourceOf(r))}</span>`
+  : `<span class="pill p-obs"><span class="dot"></span>${esc(sourceOf(r))}</span>`;
+function statePill(s){
+  const v=String(s||"").toLowerCase();
+  if(/^(ok|running|healthy|ready|enabled|active|certified|managed|enforced)/.test(v))
+    return `<span class="pill p-ok"><span class="dot"></span>Healthy</span>`;
+  if(/stop|exit|fail|denied|disabled/.test(v)) return `<span class="pill p-bad"><span class="dot"></span>${esc(s)}</span>`;
+  if(/declared|planned/.test(v)) return `<span class="pill p-n">Planned</span>`;
+  if(/unknown/.test(v)) return `<span class="pill p-n">Unknown</span>`;
+  return `<span class="pill p-warn"><span class="dot"></span>${esc(s)}</span>`;
+}
+function matchPill(c){
+  if(c==null||c>=1) return `<span class="pill p-ok">Confirmed</span>`;
+  if(c>=0.85) return `<span class="pill p-obs">Declared</span>`;
+  return `<span class="pill p-warn">Likely — verify</span>`;
+}
+
+async function boot(){
+  S=await api("/v1/stats"); VOCAB=S.vocabulary;
+  $("#n-all").textContent=S.resources;
+  $("#authnote").textContent = S.auth==="open" ? "Sign-in not required here." : "Sign-in required.";
+  const newest=Math.max(...S.collectors.map(c=>c.finished||0));
+  const mins=Math.max(0,Math.round(Date.now()/1000-newest)/60|0);
+  $("#fresh").textContent=`${S.resources} resources · checked ${mins===0?"just now":mins+"m ago"}`;
+  const counts=Object.fromEntries(S.by_group.map(g=>[g.value,g.n]));
+  $("#groupnav").innerHTML=VOCAB.groups.filter(g=>counts[g.key]).map(g=>
+    `<button data-g="${g.key}">${esc(g.label)}<span class="n">${counts[g.key]}</span></button>`).join("");
+  wire(); render();
+}
+function wire(){
+  document.querySelectorAll("aside button").forEach(b=>b.onclick=()=>{
+    document.querySelectorAll("aside button").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on");
+    if(b.dataset.g){ V="all"; F={group:b.dataset.g}; } else { V=b.dataset.v; F={}; }
+    render();
+  });
+}
+async function render(){
+  // Leaving a view takes its live connection with it. Without this, navigating
+  // away from Deployments left an open stream per visit.
+  if(typeof stopLive==="function") stopLive();
+  const m=$("#main"); m.innerHTML=`<div class="empty">Loading…</div>`;
+  try{ await ({home,ship,all:allRes,map,who,health,blast,activity}[V])(m); }
+  catch(e){ m.innerHTML=`<div class="empty">Could not load this view.<br><span class="soft">${esc(e.message)}</span></div>`; }
+}
+
+/* ================= HOME ================= */
+async function home(m){
+  const h=await api("/v1/health");
+  const failing=h.collectors.filter(c=>!c.ok);
+  const counts=Object.fromEntries(S.by_group.map(g=>[g.value,g.n]));
+  m.innerHTML=`
+    <div class="page"><h2>Your infrastructure</h2>
+      <p>Everything we can see across Terraform, containers, storage, the query engine and your
+         directory — joined so you can follow one thing to everything it touches.</p></div>
+    <div class="tiles">
+      <div class="tile lift"><b>${S.resources}</b><span>resources</span></div>
+      <div class="tile"><b>${S.edges}</b><span>connections between them</span></div>
+      <div class="tile"><b>${S.by_group.length}</b><span>resource groups</span></div>
+      <div class="tile"><b>${failing.length||h.collectors.length}</b>
+        <span>${failing.length?"sources not responding":"sources connected"}</span></div>
+    </div>
+    <div class="groups">
+      ${VOCAB.groups.filter(g=>counts[g.key]).map(g=>`
+        <button class="gcard" onclick="openGroup('${g.key}')">
+          <div class="top"><h3>${esc(g.label)}</h3><span class="n">${counts[g.key]}</span></div>
+          <p>${esc(g.about)}</p></button>`).join("")}
+    </div>
+    <div class="panel"><header><h3>Where this information comes from</h3>
+      <span class="hint">We only ever read. Nothing here can change your infrastructure.</span></header>
+      <div class="body"><table>
+        <thead><tr><th>Source</th><th>Status</th><th>Detail</th><th>Resources found</th></tr></thead><tbody>
+        ${h.collectors.map(c=>{
+          const run=h.runs.find(r=>r.plugin===c.plugin)||{};
+          return `<tr><td><span class="nm">${esc(VOCAB.sources[c.plugin]||c.plugin)}</span></td>
+            <td>${c.ok?'<span class="pill p-ok"><span class="dot"></span>Connected</span>':'<span class="pill p-bad"><span class="dot"></span>Not responding</span>'}</td>
+            <td class="soft">${esc(c.detail)}</td><td>${run.entities??"—"}</td></tr>`;
+        }).join("")}
+      </tbody></table></div></div>`;
+}
+function openGroup(key){
+  document.querySelectorAll("aside button").forEach(x=>x.classList.remove("on"));
+  const b=document.querySelector(`aside button[data-g="${key}"]`); if(b) b.classList.add("on");
+  V="all"; F={group:key}; render();
+}
+
+/* ================= DEPLOYMENTS ================= */
+const buildPill=b=>{
+  if(b.status!=="completed") return `<span class="pill p-warn"><span class="dot"></span>Running</span>`;
+  if(b.conclusion==="success") return `<span class="pill p-ok"><span class="dot"></span>Passed</span>`;
+  if(b.conclusion==="cancelled") return `<span class="pill p-n">Cancelled</span>`;
+  return `<span class="pill p-bad"><span class="dot"></span>Failed</span>`;
+};
+const ago=t=>{if(!t)return"—";const s=Date.now()/1000-t;
+  if(s<90)return"just now";if(s<5400)return Math.round(s/60)+"m ago";
+  if(s<172800)return Math.round(s/3600)+"h ago";return Math.round(s/86400)+"d ago";};
+
+function buildRows(builds){
+  return builds.map(b=>{
+    const broke=(b.steps||[]).flatMap(j=>(j.steps||[]).filter(s=>s.conclusion==="failure")
+      .map(s=>j.job+" · "+s.name));
+    return `<tr><td><span class="nm">${esc(b.name||"build")}</span>${
+      broke.length?`<br><span class="id" style="color:var(--bad)">stopped at ${esc(broke[0])}</span>`:""}</td>
+      <td class="soft">${esc(b.branch||"")}</td><td class="id">${esc((b.sha||"").slice(0,8))}</td>
+      <td>${buildPill(b)}</td><td class="soft">${ago(b.started)}</td>
+      <td>${b.url?`<a class="linkish" href="${esc(b.url)}" target="_blank" rel="noopener">Open</a>`:""}</td></tr>`;
+  }).join("")||`<tr><td colspan="6" class="soft">No builds found.</td></tr>`;
+}
+
+async function ship(m){
+  const d=await api("/v1/delivery");
+  const running=d.builds.filter(b=>b.status!=="completed").length;
+  m.innerHTML=`
+    <div class="page"><h2>Deployments</h2>
+      <p>An artifact is built once and moves forward. It only enters an environment after it has
+         been proven in the one before &mdash; merging a pull request makes it <em>eligible</em>,
+         it does not ship it.</p></div>
+
+    <div class="pipeline">
+      ${d.environments.map((e,i)=>`
+        <div class="stage ${e.artifact?"live":""}">
+          <div class="stage-h"><h3>${esc(e.name)}</h3>
+            ${e.artifact?`<span class="pill p-ok"><span class="dot"></span>Live</span>`
+                        :`<span class="pill p-n">Empty</span>`}</div>
+          ${e.artifact?`<div class="art">${esc(e.artifact)}</div>
+             <div class="meta">commit ${esc(e.git_sha||"?")} &middot; ${ago(e.since)}</div>`
+                      :`<div class="meta">Nothing deployed here yet.</div>`}
+          ${e.history.length>1?`<div class="meta">previous: ${esc(e.history[1].artifact)}</div>`:""}
+        </div>${i<d.environments.length-1?`<div class="arrow">&rarr;</div>`:""}`).join("")}
+    </div>
+
+    <div class="panel"><header><h3>Builds</h3>
+      <span class="hint" id="feed">${feedLine(d.feed,running)}</span></header>
+      <div class="body"><table>
+        <thead><tr><th>Workflow</th><th>Branch</th><th>Commit</th><th>Result</th><th>When</th><th></th></tr></thead>
+        <tbody id="builds">${buildRows(d.builds)}</tbody>
+      </table></div></div>
+
+    <div class="panel"><header><h3>Artifacts and how far they have earned their way</h3>
+      <span class="hint">An artifact cannot enter an environment until the one before it passed</span></header>
+      <div class="body"><table>
+        <thead><tr><th>Artifact</th><th>Commit</th><th>References</th>
+          ${d.ladder.map(l=>`<th>${esc(l)}</th>`).join("")}</tr></thead><tbody>
+        ${d.artifacts.map(a=>`<tr>
+          <td><span class="nm">${esc(a.key)}</span></td>
+          <td class="id">${esc(a.git_sha||"?")}</td>
+          <td>${a.immutable?`<span class="pill p-ok">digest</span>`:`<span class="pill p-warn">tag only</span>`}</td>
+          ${a.gates.map(g=>`<td>${
+            g.state==="passed"?`<span class="pill p-ok">passed</span>`
+            :g.state==="failed"?`<span class="pill p-bad">failed</span>`
+            :g.eligible?`<span class="pill p-n">ready</span>`
+            :`<span class="pill p-n" style="opacity:.45">blocked</span>`}</td>`).join("")}
+        </tr>`).join("")||`<tr><td colspan="6" class="soft">No artifacts recorded yet.</td></tr>`}
+      </tbody></table></div></div>
+
+    <div class="panel"><header><h3>What a promotion actually replaces</h3></header>
+      <div class="body pad" style="display:grid;gap:10px">
+        <div><span class="pill p-ok">Replaced wholesale</span>
+          <span class="soft" style="font-size:12.5px"> ${d.replaceable.join(", ")} &mdash;
+          stateless, so going back is instant.</span></div>
+        <div><span class="pill p-warn">Carried forward in place</span>
+          <span class="soft" style="font-size:12.5px"> ${d.carried_forward.join(", ")} &mdash;
+          these hold your data. Going back here is a restore, not a rollback.</span></div>
+      </div></div>`;
+
+  liveBuilds();
+}
+
+/* The builds table follows the server instead of asking it on a timer.
+   The server holds one GitHub poller for every open tab, so this stream is
+   free: a status change shows up here in well under a second, and closing the
+   view closes the connection. If EventSource is unavailable or the stream
+   drops, it falls back to asking - slowly, because that path costs API budget. */
+function liveBuilds(){
+  stopLive();
+  const paint=p=>{
+    if(V!=="ship")return stopLive();
+    const t=$("#builds"); if(t&&p.builds)t.innerHTML=buildRows(p.builds);
+    const f=$("#feed");
+    if(f)f.innerHTML=feedLine(p.feed,(p.builds||[]).filter(b=>b.status!=="completed").length);
+  };
+  if(window.EventSource){
+    const es=new EventSource("/v1/delivery/stream");
+    window._live=es;
+    es.addEventListener("delivery",e=>{try{paint(JSON.parse(e.data));}catch(err){}});
+    // onerror fires on a dropped stream; the browser reconnects by itself, so
+    // only give up and fall back when the connection is actually closed.
+    es.onerror=()=>{if(es.readyState===EventSource.CLOSED){stopLive();pollBuilds();}};
+  } else pollBuilds();
+}
+
+function pollBuilds(){
+  window._poll=setInterval(async()=>{
+    if(V!=="ship")return stopLive();
+    try{const f=await api("/v1/delivery");
+        const t=$("#builds");if(t)t.innerHTML=buildRows(f.builds);
+        const h=$("#feed");
+        if(h)h.innerHTML=feedLine(f.feed,f.builds.filter(b=>b.status!=="completed").length);
+    }catch(err){}
+  },15000);
+}
+
+function stopLive(){
+  if(window._live){window._live.close();window._live=null;}
+  if(window._poll){clearInterval(window._poll);window._poll=null;}
+}
+
+/* Say what the feed is doing. A view that stops updating must never look the
+   same as one where nothing is happening - that is exactly how a spent GitHub
+   rate limit used to present itself. */
+function feedLine(feed,running){
+  const what=running?`<b>${running} running now</b>`:"Nothing building";
+  if(!feed)return what;
+  if(feed.state==="live")
+    return `${what} &middot; <span style="color:var(--ok)">&#9679;</span> live${
+      feed.remaining!=null?` &middot; ${feed.remaining} API calls left this hour`:""}`;
+  if(feed.state==="rate limited")
+    return `${what} &middot; <span style="color:var(--warn)">&#9679;</span> paused &mdash; ${esc(feed.detail||"")}`;
+  if(feed.state==="no repo")
+    return `${what} &middot; <span class="soft">no GitHub remote, so there are no builds to follow</span>`;
+  if(feed.state==="off")
+    return `${what} &middot; <span class="soft">live updates are switched off</span>`;
+  return `${what} &middot; <span style="color:var(--bad)">&#9679;</span> not updating &mdash; ${esc(feed.detail||feed.state||"")}`;
+}
+
+/* ================= ALL RESOURCES ================= */
+async function allRes(m){
+  const qs=new URLSearchParams({limit:400,...Object.fromEntries(Object.entries(F).filter(([,v])=>v))});
+  const d=await api("/v1/resources?"+qs);
+  const groupName=F.group?(VOCAB.groups.find(g=>g.key===F.group)||{}).label:null;
+  const about=F.group?(VOCAB.groups.find(g=>g.key===F.group)||{}).about:"";
+  m.innerHTML=`
+    <div class="page"><h2>${esc(groupName||"All resources")}</h2>
+      <p>${esc(about||"Search everything we found, then narrow it down with the filters below.")}</p></div>
+    <div class="bar">
+      <input type="search" id="q" placeholder="Search by name…" value="${esc(F.q||"")}">
+      ${Object.keys(F).length?'<button class="linkish" onclick="F={};render()">Clear filters</button>':''}
+      <span class="soft" style="font-size:12.5px">${d.total} found</span>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="panel"><div class="body"><table>
+      <thead><tr><th>Name</th><th>Type</th><th>Group</th><th>Owner</th><th>Status</th><th>Source</th></tr></thead>
+      <tbody>${d.items.map(r=>`<tr class="click" onclick="detail('${esc(r.urn)}')">
+        <td><span class="nm">${esc(r.name).slice(0,58)}</span><br><span class="id">${esc(r.scope)}</span></td>
+        <td>${esc(typeOf(r))}</td>
+        <td class="soft">${esc((VOCAB.groups.find(g=>g.key===r.rgroup)||{}).label||"Other")}</td>
+        <td class="soft">${esc(r.owner||"—")}</td>
+        <td>${statePill(r.status)}</td><td>${originPill(r)}</td></tr>`).join("")}
+      </tbody></table>${d.items.length?"":'<div class="empty">Nothing matches those filters.</div>'}</div></div>`;
+
+  const chips=$("#chips");
+  const add=(key,label,value,count)=>{
+    const on=F[key]===value;
+    chips.insertAdjacentHTML("beforeend",
+      `<button onclick="flip('${key}','${esc(value)}')"><span class="pill ${on?'p-obs':'p-n'}">${esc(label)} ${count}</span></button>`);
+  };
+  (d.facets.kind||[]).slice(0,8).forEach(v=>add("kind",VOCAB.kinds[v.value]||v.value,v.value,v.count));
+  (d.facets.owner||[]).slice(0,5).forEach(v=>add("owner","Owner: "+v.value,v.value,v.count));
+  (d.facets.rgroup||[]).slice(0,6).forEach(v=>add("group",(VOCAB.groups.find(g=>g.key===v.value)||{}).label||v.value,v.value,v.count));
+  $("#q").oninput=e=>{F.q=e.target.value||undefined;clearTimeout(window._t);window._t=setTimeout(render,280);};
+}
+function flip(k,v){F[k]=F[k]===v?undefined:v;render();}
+
+/* ================= MAP ================= */
+async function map(m){
+  const all=(await api("/v1/resources?limit=500")).items;
+  const focus=window._f||(all.find(r=>r.kind==="catalog")||all[0]).urn;
+  window._f=focus;
+  const depth=window._d||2;
+  const d=await api(`/v1/graph/neighbors?urn=${encodeURIComponent(focus)}&depth=${depth}`);
+  m.innerHTML=`
+    <div class="page"><h2>Relationship map</h2>
+      <p>Start from one resource and see what it touches. Click any box to move the centre there.</p></div>
+    <div class="bar">
+      <select id="pick">${all.map(r=>`<option value="${esc(r.urn)}" ${r.urn===focus?"selected":""}>${esc(typeOf(r))} · ${esc(r.name).slice(0,48)}</option>`).join("")}</select>
+      <select id="dep">${[1,2,3].map(x=>`<option value="${x}" ${x==depth?"selected":""}>${x} step${x>1?"s":""} out</option>`).join("")}</select>
+      <span class="soft" style="font-size:12.5px">${d.nodes.length} resources · ${d.edges.length} connections</span>
+    </div>
+    <div class="panel"><div class="body" id="gb"></div></div>`;
+  $("#pick").onchange=e=>{window._f=e.target.value;render();};
+  $("#dep").onchange=e=>{window._d=+e.target.value;render();};
+  draw($("#gb"),d,focus);
+}
+function draw(box,d,focus){
+  if(!d.nodes.length){box.innerHTML='<div class="empty">Nothing is linked to this yet.</div>';return;}
+  const dist=new Map([[focus,0]]); let front=[focus];
+  for(let k=1;k<=3&&front.length;k++){const nx=[];
+    d.edges.forEach(e=>{
+      if(dist.get(e.src)===k-1&&!dist.has(e.dst)){dist.set(e.dst,k);nx.push(e.dst);}
+      if(dist.get(e.dst)===k-1&&!dist.has(e.src)){dist.set(e.src,k);nx.push(e.src);}});
+    front=nx;}
+  const rings={}; d.nodes.forEach(n=>{const k=dist.get(n.urn)??3;(rings[k]=rings[k]||[]).push(n);});
+  const W=940,R=[0,165,290,395],H=2*(R[3]+66),cx=W/2,cy=H/2,pos=new Map();
+  Object.entries(rings).forEach(([k,list])=>{const r=R[Math.min(+k,3)];
+    list.forEach((n,i)=>{const a=(i/list.length)*Math.PI*2-Math.PI/2;
+      pos.set(n.urn,r===0?{x:cx,y:cy}:{x:cx+r*Math.cos(a),y:cy+r*0.6*Math.sin(a)});});});
+  const lines=d.edges.map(e=>{const a=pos.get(e.src),b=pos.get(e.dst);if(!a||!b)return"";
+    const weak=(e.confidence??1)<0.8;
+    return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="var(--soft)"
+      stroke-width="${weak?1:1.4}" stroke-dasharray="${weak?'5 4':'0'}" opacity=".5">
+      <title>${esc(VOCAB.edges[e.type]||e.type)}</title></line>`;}).join("");
+  const boxes=d.nodes.map(n=>{const p=pos.get(n.urn);if(!p)return"";
+    const isF=n.urn===focus,dec=DECLARERS.has(n.provider);
+    const t=n.name.length>24?n.name.slice(0,23)+"…":n.name, w=Math.max(96,t.length*7+22);
+    return `<g class="n" onclick="recentre('${esc(n.urn)}')">
+      <title>${esc(typeOf(n))} · ${esc(n.name)}</title>
+      <rect x="${p.x-w/2}" y="${p.y-15}" width="${w}" height="30" rx="6"
+        fill="${isF?'var(--accent)':(dec?'var(--dec-bg)':'var(--panel)')}"
+        stroke="${isF?'var(--accent)':(dec?'var(--dec-line)':'var(--line)')}" stroke-width="${isF?2:1.2}"/>
+      <text x="${p.x}" y="${p.y+4.5}" text-anchor="middle"
+        fill="${isF?'#fff':(dec?'var(--dec)':'var(--ink)')}">${esc(t)}</text></g>`;}).join("");
+  box.innerHTML=`<svg class="g" viewBox="0 0 ${W} ${H}">${lines}${boxes}</svg>
+    <div style="padding:10px 16px;font-size:12px;color:var(--soft)">
+      A dashed line means we matched the two by naming convention rather than a shared identifier — worth confirming.</div>`;
+}
+function recentre(u){window._f=u;render();}
+
+/* ================= WHO HAS ACCESS ================= */
+async function who(m){
+  const d=await api("/v1/access/principals");
+  m.innerHTML=`
+    <div class="page"><h2>Who has access</h2>
+      <p>People belong to teams, teams carry a role, and the role decides what can be read.
+         Click anyone to trace their access end to end.</p></div>
+    <div class="panel"><header><h3>Teams</h3><span class="hint">A team's role is what actually grants access</span></header>
+      <div class="body"><table>
+      <thead><tr><th>Team</th><th>Role it carries</th><th>People</th><th>What it is for</th></tr></thead><tbody>
+      ${d.groups.map(g=>`<tr class="click" onclick="detail('${esc(g.urn)}')">
+        <td><span class="nm">${esc(g.name)}</span></td>
+        <td>${g.attributes.trino_role?`<span class="pill p-obs">${esc(g.attributes.trino_role)}</span>`:'<span class="soft">—</span>'}</td>
+        <td>${d.users.filter(u=>u.owner===g.name).length}</td>
+        <td class="soft">${esc((g.attributes.description||"").slice(0,64))}</td></tr>`).join("")}
+      </tbody></table></div></div>
+    <div class="panel"><header><h3>People</h3></header><div class="body"><table>
+      <thead><tr><th>Name</th><th>Team</th><th>Account</th><th>Email</th></tr></thead><tbody>
+      ${d.users.map(u=>`<tr class="click" onclick="trace('${esc(u.name)}')">
+        <td><span class="nm">${esc(u.attributes.name||u.name)}</span><br><span class="id">${esc(u.name)}</span></td>
+        <td class="soft">${esc(u.owner||"—")}</td><td>${statePill(u.status)}</td>
+        <td class="soft">${esc(u.attributes.email||"")}</td></tr>`).join("")}
+    </tbody></table></div></div>`;
+}
+async function trace(name){
+  const d=await api("/v1/access/effective?principal="+encodeURIComponent(name));
+  open_(`<h3>${esc(d.principal)}</h3><div class="rid">${esc(d.urn)}</div>
+    <p style="font-size:13px;color:var(--ink-2);margin:0 0 14px">Everything this person can reach, and how many steps away it is.</p>
+    <table><thead><tr><th>Steps</th><th>Type</th><th>What they reach</th></tr></thead><tbody>
+    ${d.paths.map(p=>`<tr><td>${p.hops}</td><td class="soft">${esc(VOCAB.kinds[p.kind]||p.kind)}</td>
+      <td>${esc(p.name||p.urn)}</td></tr>`).join("")||'<tr><td colspan="3" class="soft">No access resolved.</td></tr>'}
+    </tbody></table>`);
+}
+
+/* ================= HEALTH ================= */
+async function health(m){
+  const c=await api("/v1/capacity");
+  const pct=c.containers.total?Math.round(c.containers.running/c.containers.total*100):0;
+  m.innerHTML=`
+    <div class="page"><h2>Health</h2><p>${esc(c.note)}</p></div>
+    <div class="tiles">
+      <div class="tile lift"><b>${c.containers.running}<span style="font-size:15px;color:var(--soft)"> / ${c.containers.total}</span></b>
+        <span>containers running</span><div class="meter"><i style="width:${pct}%;background:var(--ok)"></i></div></div>
+      <div class="tile"><b>${c.containers.unhealthy}</b><span>need attention</span></div>
+      <div class="tile"><b>${c.volumes.count}</b><span>disks</span></div>
+      <div class="tile"><b>${c.buckets.length}</b><span>storage buckets</span></div>
+    </div>
+    <div class="panel"><header><h3>Storage</h3><span class="hint">Sampled, not a full scan</span></header>
+      <div class="body"><table><thead><tr><th>Bucket</th><th>Files seen</th><th>Size</th></tr></thead><tbody>
+      ${c.buckets.map(b=>`<tr><td><span class="nm">${esc(b.name)}</span></td><td>${b.objects??"—"}</td>
+        <td>${b.bytes?(b.bytes/1048576).toFixed(1)+" MB":"—"}</td></tr>`).join("")}
+      </tbody></table></div></div>
+    <div class="panel"><header><h3>Restarts</h3><span class="hint">A service that keeps restarting is usually the first sign of trouble</span></header>
+      <div class="body"><table><thead><tr><th>Service</th><th>Restarts</th></tr></thead><tbody>
+      ${c.restarts.map(r=>`<tr><td><span class="nm">${esc(r.name)}</span></td>
+        <td>${r.restarts>3?'<span class="pill p-bad">'+r.restarts+'</span>':'<span class="pill p-warn">'+r.restarts+'</span>'}</td></tr>`).join("")
+        ||'<tr><td colspan="2" class="soft">Nothing has restarted. </td></tr>'}
+    </tbody></table></div></div>`;
+}
+
+/* ================= BLAST RADIUS ================= */
+async function blast(m){
+  const list=(await api("/v1/resources?provider=terraform&kind=state_resource&limit=200")).items;
+  const urn=window._b||(list[0]||{}).urn; window._b=urn;
+  const d=urn?await api(`/v1/graph/impact?urn=${encodeURIComponent(urn)}&direction=downstream`):{items:[],count:0,low_confidence:0};
+  m.innerHTML=`
+    <div class="page"><h2>Change impact</h2>
+      <p>Pick something Terraform manages. Everything listed below depends on it, closest first —
+         this is what you would be putting at risk.</p></div>
+    <div class="bar"><select id="pb">${list.map(r=>`<option value="${esc(r.urn)}" ${r.urn===urn?"selected":""}>${esc(r.name)}</option>`).join("")}</select></div>
+    <div class="tiles">
+      <div class="tile lift"><b>${d.count}</b><span>resources affected</span></div>
+      <div class="tile"><b>${d.items.length?Math.max(...d.items.map(i=>i.hops)):0}</b><span>steps at the furthest</span></div>
+      <div class="tile"><b>${d.low_confidence}</b><span>matches worth verifying</span></div>
+    </div>
+    <div class="panel"><div class="body"><table>
+      <thead><tr><th>Steps away</th><th>Type</th><th>Resource</th><th>Relationship</th><th>Match</th></tr></thead><tbody>
+      ${d.items.map(i=>`<tr class="click" onclick="detail('${esc(i.urn)}')">
+        <td>${i.hops}</td><td class="soft">${esc(VOCAB.kinds[i.kind]||i.kind||"—")}</td>
+        <td><span class="nm">${esc((i.name||i.urn)).slice(0,56)}</span></td>
+        <td class="soft">${esc(VOCAB.edges[i.type]||i.type)}</td>
+        <td>${matchPill(i.confidence)}</td></tr>`).join("")
+        ||'<tr><td colspan="5" class="soft">Nothing depends on this.</td></tr>'}
+    </tbody></table></div></div>`;
+  $("#pb").onchange=e=>{window._b=e.target.value;render();};
+}
+
+/* ================= ACTIVITY ================= */
+async function activity(m){
+  const d=await api("/v1/audit?limit=200");
+  m.innerHTML=`
+    <div class="page"><h2>Activity</h2><p>Every time someone viewed something here. Kept whether or not sign-in was required.</p></div>
+    <div class="panel"><div class="body"><table>
+      <thead><tr><th>When</th><th>Who</th><th>What they asked for</th></tr></thead><tbody>
+      ${d.entries.map(e=>`<tr><td class="soft">${new Date(e.at*1000).toLocaleTimeString()}</td>
+        <td>${esc(e.principal)}</td><td class="id">${esc(e.action)} ${esc((e.target||"").slice(0,54))}</td></tr>`).join("")}
+    </tbody></table></div></div>`;
+}
+
+/* ================= DRAWER ================= */
+async function detail(urn){
+  const r=await api("/v1/resources/"+urn);
+  const rel=[...r.edges_out.map(e=>({d:"→",t:e.type,o:e.dst_name||e.dst,u:e.dst,c:e.confidence})),
+             ...r.edges_in.map(e=>({d:"←",t:e.type,o:e.src_name||e.src,u:e.src,c:e.confidence}))];
+  open_(`
+    <h3>${esc(r.name)}</h3><div class="rid">${esc(r.urn)}</div>
+    <dl class="kv">
+      <dt>Type</dt><dd>${esc(typeOf(r))}</dd>
+      <dt>Group</dt><dd>${esc((VOCAB.groups.find(g=>g.key===r.rgroup)||{}).label||"Other")}</dd>
+      <dt>Where</dt><dd>${esc(r.scope)}</dd>
+      <dt>Owner</dt><dd>${esc(r.owner||"Not set")}</dd>
+      <dt>Status</dt><dd>${statePill(r.status)}</dd>
+      <dt>Source</dt><dd>${originPill(r)}</dd>
+      <dt>Last checked</dt><dd>${new Date(r.observed_at*1000).toLocaleString()}</dd>
+    </dl>
+    ${rel.length?`<p class="sect">Connections</p><div class="rel">
+      ${rel.slice(0,24).map(x=>`<div class="relrow"><em>${x.d==="→"?"This":"That"} ${esc(VOCAB.edges[x.t]||x.t)}</em>
+        <b>${esc(String(x.o).slice(0,52))}</b>${(x.c??1)<0.8?' <span class="pill p-warn">verify</span>':''}</div>`).join("")}
+    </div>`:""}
+    ${r.aliases.length>1?`<p class="sect">Also known as</p>
+      <pre>${r.aliases.map(a=>esc(a.key)).join("\n")}</pre>`:""}
+    <p class="sect">Details</p>
+    <pre>${esc(JSON.stringify(r.attributes,null,1)).slice(0,2400)}</pre>
+    <button class="linkish" onclick="recentre('${esc(r.urn)}');close_();document.querySelector('aside button[data-v=map]').click()">Show on the relationship map →</button>
+  `);
+}
+function open_(html){const d=$("#drawer");d.className="open";d.innerHTML=`<button class="x" onclick="close_()">Close ✕</button>`+html;}
+function close_(){const d=$("#drawer");d.className="";d.innerHTML="";}
+document.addEventListener("keydown",e=>{if(e.key==="Escape")close_();});
+boot();
+</script>
+</body>
+</html>

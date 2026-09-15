@@ -10,7 +10,9 @@ name: CI
 # then the unit suite, then a real stack with real engines.
 on:
   push:
-    branches: [master, production]
+    # Work on master is validated by its pull request to production. Running
+    # both events duplicated the costly real-engine job for every PR commit.
+    branches: [production]
   pull_request:
   workflow_dispatch:
 
@@ -40,7 +42,13 @@ jobs:
 
       # Offline: locks pinned, modules import, Dockerfile inputs present,
       # deployment guards refuse what they should, access-rule invariants hold.
+      # CATALOG_CHECK_REGISTRY makes this also confirm every pinned image still
+      # resolves. An upstream that moves registries - MinIO left Docker Hub -
+      # otherwise surfaces four minutes into the integration job as "access
+      # denied", which reads like a credentials problem and is not.
       - name: Validate
+        env:
+          CATALOG_CHECK_REGISTRY: "1"
         run: python -m delivery.validate
 
       - name: Unit tests
@@ -58,6 +66,7 @@ jobs:
           pip install uv
           uv pip compile delivery/requirements.in --python-version 3.11 \
             --python-platform x86_64-manylinux_2_28 --generate-hashes \
+            --constraint delivery/requirements.lock \
             -o /tmp/requirements.lock
           strip() { grep -vE '^[[:space:]]*#' "$1" | grep -v '^$'; }
           diff -u <(strip delivery/requirements.lock) <(strip /tmp/requirements.lock) \
@@ -90,13 +99,22 @@ jobs:
       - name: Verify against a real stack
         run: python -m delivery.release verify
 
-      - name: Collect logs on failure
+      # `release verify` prints the streaming logs itself, before its own
+      # teardown. This step used to re-list the projects afterwards and find
+      # none of them, so every failed run ended with an empty section that read
+      # as "nothing to report". Anything still standing here is a run that
+      # crashed before teardown, and that is worth seeing.
+      - name: Collect logs from any stack left standing
         if: failure()
         run: |
-          for p in $(docker compose ls --format json | python -c \
-            "import json,sys; print(' '.join(s['Name'] for s in json.load(sys.stdin)))"); do
+          left=$(docker compose ls -a --format json | python -c \
+            "import json,sys; print(' '.join(s['Name'] for s in json.load(sys.stdin) if s['Name'].startswith('nda-ci-')))")
+          if [ -z "$left" ]; then
+            echo "No stack left standing - verify tore its own down and printed its logs above."
+          fi
+          for p in $left; do
             echo "===== $p ====="
-            docker compose -p "$p" logs --tail 200 || true
+            docker compose -p "$p" logs --no-color --tail 300 || true
           done
 
       - name: Always tear down

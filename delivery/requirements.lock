@@ -415,8 +415,8 @@ dbt-core==1.12.4 \
     #   -r delivery/requirements.in
     #   dbt-metricflow
     #   dbt-trino
-dbt-core-experimental-parser==2.0.1 \
-    --hash=sha256:fd184ab88e270b713bdea810cc7641b8c501b89282eef870c447501c38942b6e
+dbt-core-experimental-parser==2.0.2 \
+    --hash=sha256:bd480029fcefd4eefb8327828b9613479c420851ada93832f2981a6afdc67161
     # via dbt-core
 dbt-extractor==0.6.0 \
     --hash=sha256:05bcfab7ebd70296ceb31742e8333ba66a2c939de44e61a7088bebafa939aaf6 \
@@ -2105,9 +2105,9 @@ update-checker==0.18.0 \
     --hash=sha256:6a2d45bb4ac585884a6b03f9eade9161cedd9e8111545141e9aa9058932acb13 \
     --hash=sha256:cbba64760a36fe2640d80d85306e8fe82b6816659190993b7bdabadee4d4bbfd
     # via dbt-metricflow
-urllib3==2.7.0 \
-    --hash=sha256:231e0ec3b63ceb14667c67be60f2f2c40a518cb38b03af60abc813da26505f4c \
-    --hash=sha256:9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897
+urllib3==2.8.0 \
+    --hash=sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3 \
+    --hash=sha256:63bf2ead4c879426ebf22ef2a781eeb4aa3b4ae798a0435506f8687fd5bb9b63
     # via
     #   botocore
     #   requests

@@ -12,6 +12,7 @@ what they are supposed to refuse.
 """
 import importlib
 import json
+import os
 import pathlib
 import re
 import sys
@@ -28,6 +29,7 @@ def _check(results, name, condition, detail=""):
 def modules(results):
     """Every module imports. Catches a syntax error or bad import in one second."""
     for module in ("streaming.contracts", "streaming.simulator", "streaming.api",
+                   "catalog.store",
                    "marketplace.products", "marketplace.build", "marketplace.identity",
                    "marketplace.auth", "marketplace.tls", "marketplace.trino_config",
                    "marketplace.audit", "marketplace.retention",
@@ -54,6 +56,52 @@ def supply_chain(results):
     unpinned = [k for k, v in images.items() if k != "platform" and not DIGEST.search(v)]
     _check(results, "every base image pinned by digest", not unpinned, ", ".join(unpinned))
 
+    # A digest that no longer resolves is the failure that cost us a CI run:
+    # MinIO stopped publishing to Docker Hub, the pin stayed valid-looking, and
+    # the build got four minutes in before `docker compose up` said "access
+    # denied". Checking the registry is a network call, so it is opt-in - but CI
+    # sets CATALOG_CHECK_REGISTRY=1 and finds it in seconds instead.
+    if os.environ.get("CATALOG_CHECK_REGISTRY", "").lower() in ("1", "true", "yes"):
+        import subprocess
+        unresolvable = []
+        for name, reference in images.items():
+            if name == "platform":
+                continue
+            probe = subprocess.run(["docker", "manifest", "inspect", reference],
+                                   capture_output=True, text=True, timeout=120,
+                                   env={**os.environ, "MSYS_NO_PATHCONV": "1"})
+            if probe.returncode != 0:
+                unresolvable.append(name)
+        _check(results, "every pinned image still resolves in its registry",
+               not unresolvable, ", ".join(unresolvable))
+
+        # And that every healthcheck can actually RUN in the image it targets.
+        # Two shipped that could not: iceberg-rest has no curl, and OPA has no
+        # shell at all. Both looked fine and both made `depends_on` wait forever,
+        # reporting the service as unhealthy rather than the check as wrong.
+        from delivery.compose import topology
+        spec = topology("nda-ci-validate", "/tmp/x",
+                        {"app": "a", "flink": "f", "catalog": "c"})
+        broken = []
+        for service, definition in spec["services"].items():
+            check = definition.get("healthcheck")
+            if not check:
+                continue
+            # Only base images can be checked here. app/flink/catalog do not
+            # exist until `release build` runs, and CI checks them after it does.
+            if definition["image"] not in images.values():
+                continue
+            tool = check["test"][-1].split()[0]
+            probe = subprocess.run(
+                ["docker", "run", "--rm", "--entrypoint", "sh", definition["image"],
+                 "-c", f"command -v {tool}"],
+                capture_output=True, text=True, timeout=180,
+                env={**os.environ, "MSYS_NO_PATHCONV": "1"})
+            if probe.returncode != 0:
+                broken.append(f"{service} needs {tool}")
+        _check(results, "every healthcheck can run in its own image",
+               not broken, "; ".join(broken))
+
     jars = json.loads((ROOT / "delivery/jars.lock.json").read_text(encoding="utf-8"))
     bad = [j["name"] for j in jars if not re.fullmatch(r"[0-9a-f]{64}", j.get("sha256", ""))]
     _check(results, "every JVM artifact has a SHA256", not bad, ", ".join(bad))
@@ -70,6 +118,14 @@ def build_inputs(results):
         parts = line.split()[1:-1]
         missing += [p for p in parts if not (ROOT / p).exists()]
     _check(results, "Dockerfile COPY sources all exist", not missing, ", ".join(missing))
+    # Integration tests run inside the built application image.  Importing a
+    # package from the checkout is not evidence that it was copied there.
+    packaged = {line.split()[1] for line in dockerfile.splitlines()
+                if line.startswith("COPY ") and "--from=" not in line}
+    required = {"streaming", "catalog", "marketplace", "delivery"}
+    absent = sorted(required - packaged)
+    _check(results, "application image includes every tested package", not absent,
+           ", ".join(absent))
 
 
 def deployment_guards(results):
@@ -103,6 +159,98 @@ def deployment_guards(results):
     _check(results, "audit receiver is part of the stack", "audit" in spec["services"])
     _check(results, "audit log is written to the mounted volume",
            spec["services"]["audit"]["environment"]["AUDIT_LOG_PATH"].startswith("/run/nda"))
+
+
+def credentials(results):
+    """A generated secrets.env must be one a stack can actually start with.
+
+    Both failures this catches presented as an unhealthy or restart-looping
+    container, minutes into CI, with nothing in the message about a password:
+    three independent values for the one `nda` Postgres user, and a Keycloak
+    admin username with no password because Keycloak 26 reads the variable under
+    a different name. Neither needs a container to detect.
+    """
+    import contextlib
+    import io
+    import tempfile
+    from delivery import secrets as secret_module
+
+    with tempfile.TemporaryDirectory() as directory:
+        with contextlib.redirect_stdout(io.StringIO()):   # it reports what it wrote
+            secret_module.init(directory)
+        text = (pathlib.Path(directory) / "secrets.env").read_text(encoding="utf-8")
+    values = dict(line.split("=", 1) for line in text.splitlines()
+                  if "=" in line and not line.startswith("#"))
+
+    _check(results, "every required secret is generated",
+           all(values.get(n) for n, auto, _ in secret_module.REQUIRED if auto),
+           ", ".join(n for n, auto, _ in secret_module.REQUIRED if auto and not values.get(n)))
+
+    wrong = [f"{n} != {src}" for n, src in secret_module.ALIAS.items()
+             if values.get(n) != values.get(src)]
+    _check(results, "secrets that are one credential share one value", not wrong,
+           ", ".join(wrong))
+
+    # Anything Kubernetes projects out of the secret has to be in it, or the pod
+    # starts with the variable simply unset - which is how the Keycloak one hid.
+    manifest = (ROOT / "delivery/kubernetes.py").read_text(encoding="utf-8")
+    projected = set(re.findall(r'_secret_env\(([^)]*)\)', manifest))
+    wanted = {name for group in projected for name in re.findall(r'"([A-Z0-9_]+)"', group)}
+    undeclared = sorted(wanted - {n for n, _, _ in secret_module.REQUIRED})
+    _check(results, "every secret the manifests project is one we generate",
+           not undeclared, ", ".join(undeclared))
+
+    # Provisioning code must not rely on a variable that cannot be present in
+    # secrets.env. This caught the original CI failure after the whole stack had
+    # started: bootstrap needed SQLSERVER_PASSWORD and DEBEZIUM_PASSWORD but the
+    # secret contract did not declare either.
+    bootstrap = (ROOT / "streaming/bootstrap.py").read_text(encoding="utf-8")
+    required_by_bootstrap = set(re.findall(r'os\.environ\["([A-Z0-9_]+)"\]', bootstrap))
+    undeclared = sorted(required_by_bootstrap - {n for n, _, _ in secret_module.REQUIRED})
+    _check(results, "bootstrap credentials are generated", not undeclared, ", ".join(undeclared))
+
+    _check(results, "MinIO client credentials match its initialized identity",
+           values.get("AWS_ACCESS_KEY_ID") == values.get("MINIO_ROOT_USER")
+           and values.get("AWS_SECRET_ACCESS_KEY") == values.get("MINIO_ROOT_PASSWORD"))
+
+
+def streaming_runtime(results):
+    """The Flink services must carry what the Iceberg sink needs to reach S3.
+
+    iceberg-aws-bundle resolves a region through the AWS SDK provider chain,
+    which reads the environment. With none set it throws "Unable to load region
+    from any of the providers in the chain", the tasks restart forever, silver
+    never fills, and the failure surfaces ten minutes later as a reconciliation
+    timeout that names neither S3 nor a region. Reproduced and fixed against a
+    real session cluster; this keeps it fixed.
+    """
+    from delivery.compose import cdc_topics, topology
+
+    spec = topology("nda-ci-validate", "/tmp/runtime",
+                    {"app": "a", "flink": "f", "catalog": "c"})
+    # FLINK_PROPERTIES marks the services that actually run a Flink JVM, and so
+    # the ones that load the Iceberg sink. flink-init shares the image but only
+    # prepares a directory, and needs no credentials of any kind.
+    flink = [n for n, d in spec["services"].items()
+             if "FLINK_PROPERTIES" in d.get("environment", {})]
+    missing = [n for n in flink
+               if spec["services"][n]["environment"].get("AWS_REGION") is None]
+    _check(results, "every Flink service declares an AWS region", not missing,
+           ", ".join(missing))
+
+    # The SQL job reads these by name. If a source table is added without its
+    # topic, the job fails at runtime with a metadata lookup, not at submission.
+    topics = cdc_topics()
+    creator = spec["services"]["kafka-init"]["command"][0]
+    absent = [t for t in topics if t not in creator]
+    _check(results, "every CDC topic is created before the job that reads it",
+           not absent and len(topics) > 0, ", ".join(absent) or f"{len(topics)} topics")
+    _check(results, "the SQL job waits for topic creation to finish",
+           spec["services"]["flink-sql"]["depends_on"].get("kafka-init", {}).get("condition")
+           == "service_completed_successfully")
+    # Topic creation talks to the broker, so "started" is not good enough.
+    _check(results, "Kafka is waited on by readiness, not by process start",
+           "healthcheck" in spec["services"]["kafka"])
 
 
 def governance(results):
@@ -184,6 +332,8 @@ def main():
     supply_chain(results)
     build_inputs(results)
     deployment_guards(results)
+    credentials(results)
+    streaming_runtime(results)
     kubernetes(results)
     governance(results)
 

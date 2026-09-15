@@ -162,6 +162,11 @@ After restarting it runs `marketplace.trino_config check` against production -
 the same ten RBAC assertions CI makes. A stack that starts but does not enforce
 its rules is a failed deployment, not a successful one.
 
+The Compose topology also includes a one-shot `flink-sql` service. It creates
+the checkpoint directories on the durable Flink volume and submits the
+`nda-cdc-medallion-v1` StatementSet. This is a deployment requirement: starting
+Flink's JobManager and TaskManager alone does not process Kafka records.
+
 ---
 
 ## Scaling onto two more VMs

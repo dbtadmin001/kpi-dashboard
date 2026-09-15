@@ -36,10 +36,13 @@ def identities():
     with open("infra/variables.tf", encoding="utf-8") as f:
         variables = {k: v for block in hcl2.load(f)["variable"] for k, v in block.items()}
     post("", {"realm": "nda", "enabled": True, "sslRequired": "none"})
-    group_ids = {}
+    group_ids, entitlements = {}, {}
     for name, spec in variables["stakeholder_groups"]["default"].items():
         r = post("/nda/groups", {"name": name, "attributes": {"trino_role": [spec["trino_role"]]}})
         group_ids[name] = r.headers["Location"].rsplit("/", 1)[1]
+        entitlements[name] = {
+            key: spec[key] for key in ("description", "processes", "layers", "indicators",
+                                       "formats", "full_dashboard", "row_limit", "trino_role")}
     credentials = {"users": {}}
     for user, spec in variables["stakeholder_users"]["default"].items():
         password = secrets.token_urlsafe(24)
@@ -63,6 +66,14 @@ def identities():
                 "internal_token_url": protocol + "/token", "internal_jwks_url": protocol + "/certs"}
     (RUNTIME / "trino_oidc.json").write_text(json.dumps(settings), encoding="utf-8")
     (RUNTIME / "credentials.json").write_text(json.dumps(credentials), encoding="utf-8")
+    # OPA is a separate process: it needs the same entitlement declaration as
+    # Keycloak before API authorization can be tested. Terraform renders this on
+    # the VM; CI renders the equivalent disposable bundle here.
+    policy = RUNTIME / "policy"
+    policy.mkdir(parents=True, exist_ok=True)
+    (policy / "authz.rego").write_text(Path("infra/policy/authz.rego").read_text(encoding="utf-8"),
+                                        encoding="utf-8")
+    (policy / "data.json").write_text(json.dumps({"entitlements": entitlements}), encoding="utf-8")
     from marketplace import tls, trino_config
     # The interactive developer command prints its password; CI never logs it.
     with contextlib.redirect_stdout(io.StringIO()):
@@ -84,7 +95,9 @@ def source():
     until("Kafka Connect", lambda: requests.get("http://connect:8083/connectors", timeout=5).status_code == 200)
     bootstrap.connector()
     import boto3
-    s3 = boto3.client("s3", endpoint_url="http://minio:9000", region_name="us-east-1")
+    s3 = boto3.client("s3", endpoint_url="http://minio:9000", region_name="us-east-1",
+                      aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
+                      aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"])
     def bucket():
         if "warehouse" not in [b["Name"] for b in s3.list_buckets()["Buckets"]]:
             s3.create_bucket(Bucket="warehouse")

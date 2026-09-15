@@ -8,11 +8,12 @@ WORKDIR /app
 COPY delivery/requirements.lock /tmp/requirements.lock
 RUN pip install --require-hashes -r /tmp/requirements.lock
 COPY streaming /app/streaming
+COPY catalog /app/catalog
 COPY marketplace /app/marketplace
 COPY delivery /app/delivery
 COPY infra /app/infra
 COPY data /app/data
-COPY stream_kpi_dash_g2.py analytics_answers.py dashboard_theme.css /app/
+COPY stream_kpi_dash_g2.py analytics_answers.py dashboard_theme.css logo.jpg /app/
 RUN python -m delivery.dependencies && python -m streaming.generate
 CMD ["python", "-m", "uvicorn", "streaming.api:app", "--host", "0.0.0.0", "--port", "8000"]
 

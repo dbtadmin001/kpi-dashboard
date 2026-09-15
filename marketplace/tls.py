@@ -150,7 +150,16 @@ def issue(force=False):
     KEYSTORE.write_bytes(pkcs12.serialize_key_and_certificates(
         name=b"trino-marketplace", key=key, cert=certificate, cas=[ca_certificate],
         encryption_algorithm=serialization.BestAvailableEncryption(password.encode())))
-    os.chmod(KEYSTORE, 0o600)
+    # The official Trino image runs as uid/gid 1000.  The runtime files are
+    # rendered by a root-owned tools container, so a 0600 file would make the
+    # TLS server restart with "Permission denied" on every Linux host.  Make
+    # the secret readable only by the Trino account.  Docker Desktop's Windows
+    # bind mounts do not implement chown; the chmod is still harmless there.
+    try:
+        os.chown(KEYSTORE, 1000, 1000)
+    except (AttributeError, OSError):
+        pass
+    os.chmod(KEYSTORE, 0o640)
 
     write_truststore(password)
     print(f"Issued a server certificate valid for {VALID_DAYS} days")

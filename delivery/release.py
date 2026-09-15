@@ -121,12 +121,31 @@ def verify(keep=False):
     compose = ["docker", "compose", "-f", str(compose_file), "-p", project]
     env = {**os.environ, "MSYS_NO_PATHCONV": "1"}
     try:
-        _run(compose + ["up", "-d", "--wait"], env=env)
+        # Trino, OPA and their dependants consume files rendered by the bootstrap
+        # step. Starting every service first made Trino restart forever with an
+        # empty /etc/trino and made OPA fail because policy files were absent.
+        # Bring up only the engines that bootstrap needs, render the runtime
+        # configuration, then start the authenticated serving plane.
+        foundation = ["postgres", "minio", "kafka", "sqlserver", "connect",
+                      "iceberg-rest", "jobmanager", "taskmanager", "keycloak"]
+        _run(compose + ["up", "-d", "--wait", *foundation], env=env)
         for step in (["identities"], ["source"]):
-            _run(compose + ["run", "--rm", "tools", "python", "-m",
+            _run(compose + ["run", "--rm", "--no-deps", "tools", "python", "-m",
                             "delivery.bootstrap", *step], env=env)
-        _run(compose + ["up", "-d", "--wait"], env=env)          # pick up the rendered config
-        _run(compose + ["run", "--rm", "tools"], env=env)        # the integration gate
+        _run(compose + ["up", "-d", "--wait"], env=env)          # read the rendered config
+        try:
+            _run(compose + ["run", "--rm", "--no-deps", "tools"], env=env) # the integration gate
+        except subprocess.CalledProcessError:
+            # Reconciliation failures are almost always downstream of something
+            # that went wrong earlier and quietly: an empty silver table is the
+            # symptom, never the cause. Capture the whole streaming path here,
+            # because the `finally` below removes it moments later and the
+            # workflow's own log step then finds nothing to collect.
+            _run(compose + ["logs", "--no-color", "--tail", "400",
+                            "kafka-init", "flink-init", "flink-sql",
+                            "jobmanager", "taskmanager", "connect", "kafka"],
+                 env=env, check=False)
+            raise
         print(f"{chr(10)}Verified {project}")
         return True
     finally:

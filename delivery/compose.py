@@ -6,6 +6,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def cdc_topics():
+    """The nine CDC topics, derived from the same declaration the SQL is built
+    from - so a new source table cannot arrive without its topic."""
+    from streaming.contracts import table_names
+    return [f"nda.NDAStreaming.dbo.{table}" for table in table_names()]
+
+
 def topology(name, runtime, images, *, production=False, keycloak_url=None):
     if not re.fullmatch(r"nda-(ci-[a-z0-9-]+|staging|production)", name):
         raise ValueError("Use an isolated nda-ci-* project or nda-staging/nda-production")
@@ -55,15 +62,31 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
     }
     secret_env = [f"{runtime}/secrets.env"]
 
-    # Verified against each image before being written here. Trino is absent on
-    # purpose: its image already declares its own HEALTHCHECK.
+    # Verified against each image before being written here.
     health = {
         "postgres": "pg_isready -U nda -d nda",
         "minio": "curl -fsS http://localhost:9000/minio/health/live",
         "keycloak": "exec 3<>/dev/tcp/localhost/8180",
         "connect": "curl -fsS http://localhost:8083/connectors",
-        "opa": "wget -qO- http://localhost:8181/health >/dev/null",
-        "iceberg-rest": "curl -fsS http://localhost:8181/v1/config",
+        # Declare the image's own readiness probe in the generated Compose
+        # document too, so services that consume Trino wait for it rather than
+        # merely for its process to be spawned.
+        "trino": "/usr/lib/trino/bin/health-check",
+        # OPA is deliberately absent: its image is distroless and has no shell at
+        # all, so no CMD-SHELL healthcheck can run in it. Its dependents fall back
+        # to `service_started`, and readiness is proven by the first policy query.
+        # This image has no curl and its /bin/sh is dash, so the obvious check
+        # can never pass - and a healthcheck that can never pass is worse than
+        # none, because depends_on then waits forever and the failure reads as
+        # "iceberg-rest is unhealthy" rather than "your check is wrong".
+        # bash is present, so this asks the kernel to open the port instead.
+        # Readiness beyond "listening" is proven at the application level by
+        # delivery/wait.py, which is the more honest place for it anyway.
+        "iceberg-rest": "bash -c 'exec 3<>/dev/tcp/localhost/8181'",
+        # "started" is not "accepting connections": topic creation raced the
+        # broker and lost, with `connection refused`. rpk ships in this image and
+        # answers the only question that matters - is the Kafka API up.
+        "kafka": "rpk cluster info --brokers localhost:9092",
     }
 
     def service(image, name=None, **kwargs):
@@ -81,13 +104,33 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
 
     flink_properties = "\n".join([
         "jobmanager.rpc.address: jobmanager", "jobmanager.memory.process.size: 1024m",
+        # SQL client runs in its own container. It must submit through the
+        # JobManager DNS name, never the wildcard bind address (0.0.0.0).
+        "rest.address: jobmanager", "rest.port: 8081",
+        # The SQL client defaults to an embedded local executor. This pipeline
+        # is a standalone session cluster, so submit the StatementSet to its
+        # JobManager and let the TaskManager own checkpoint state.
+        "execution.target: remote",
         "taskmanager.memory.process.size: 5120m", "taskmanager.numberOfTaskSlots: 2",
         "taskmanager.memory.managed.fraction: 0.1", "parallelism.default: 1",
         "state.backend.type: rocksdb", "state.checkpoints.dir: file:///opt/flink/state/checkpoints",
         "state.savepoints.dir: file:///opt/flink/state/savepoints",
         "execution.checkpointing.interval: 60s",
+        # A single-node session cluster has one durable Docker volume. Full
+        # checkpoints are reliable there; RocksDB incremental checkpoints use
+        # a shared-state directory that is intended for a distributed store.
+        "execution.checkpointing.incremental: false",
         "execution.checkpointing.externalized-checkpoint-retention: RETAIN_ON_CANCELLATION",
     ])
+    # The Iceberg sink runs inside the Flink JVMs. iceberg-aws-bundle resolves a
+    # region through the AWS SDK provider chain, which reads the environment -
+    # and with nothing set it throws "Unable to load region from any of the
+    # providers in the chain", restarting the tasks forever while the source
+    # keeps reading. Silver then never matches source and reconciliation blames
+    # itself. The credentials arrive from secrets.env; only the region is ours
+    # to state, and it is the same one iceberg-rest and the dev stack declare.
+    flink_aws = {"AWS_REGION": "us-east-1"}
+
     s = {
         "postgres": service("postgres", name="postgres", env_file=secret_env,
             environment={"POSTGRES_USER": "nda", "POSTGRES_DB": "nda"},
@@ -101,7 +144,7 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
             "CATALOG_IO__IMPL": "org.apache.iceberg.aws.s3.S3FileIO",
             "CATALOG_S3_ENDPOINT": "http://minio:9000", "CATALOG_S3_PATH__STYLE__ACCESS": "true",
             "AWS_REGION": "us-east-1"}, mem_limit="1g"),
-        "kafka": service("kafka", command=["redpanda", "start", "--smp=1", "--memory=768M",
+        "kafka": service("kafka", name="kafka", command=["redpanda", "start", "--smp=1", "--memory=768M",
             "--reserve-memory=0M", "--overprovisioned", "--node-id=0", "--check=false",
             "--kafka-addr=0.0.0.0:9092", "--advertise-kafka-addr=nda-kafka:9092"],
             networks={"default": {"aliases": ["nda-kafka"]}}, volumes=["kafka:/var/lib/redpanda/data"], mem_limit="1g"),
@@ -115,10 +158,51 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
             "STATUS_STORAGE_TOPIC": "nda.connect.status", "CONFIG_STORAGE_REPLICATION_FACTOR": "1",
             "OFFSET_STORAGE_REPLICATION_FACTOR": "1", "STATUS_STORAGE_REPLICATION_FACTOR": "1",
             "HEAP_OPTS": "-Xms256m -Xmx512m"}, mem_limit="1g"),
+        # The official Flink image runs workers as UID/GID 9999. Docker creates
+        # a named volume as root, so initialize its ownership before any
+        # stateful JVM starts.
+        "flink-init": service("flink", entrypoint=["bash", "-lc"], command=[
+            "mkdir -p /opt/flink/state/checkpoints /opt/flink/state/savepoints && "
+            "chown -R 9999:9999 /opt/flink/state && chmod -R u+rwX,g+rwX /opt/flink/state"], user="0:0",
+            volumes=["flink-state:/opt/flink/state"], mem_limit="256m", restart="no"),
         "jobmanager": service("flink", command="jobmanager", env_file=secret_env,
-            environment={"FLINK_PROPERTIES": flink_properties}, volumes=["flink-state:/opt/flink/state"], mem_limit="1400m"),
+            environment={"FLINK_PROPERTIES": flink_properties, **flink_aws}, volumes=["flink-state:/opt/flink/state"], mem_limit="1400m"),
         "taskmanager": service("flink", command="taskmanager", env_file=secret_env,
-            environment={"FLINK_PROPERTIES": flink_properties}, volumes=["flink-state:/opt/flink/state"], mem_limit="5632m"),
+            environment={"FLINK_PROPERTIES": flink_properties, **flink_aws}, volumes=["flink-state:/opt/flink/state"], mem_limit="5632m"),
+        # Create the CDC topics before anything reads them.
+        #
+        # Debezium creates a topic when it emits that table's first record, and
+        # on a fresh stack the source tables are empty until the integration step
+        # seeds them - which happens after the SQL job is submitted. So the job
+        # asked for nine topics that did not exist yet, failed submission with
+        # UnknownTopicOrPartitionException, and silver stayed empty until
+        # reconciliation gave up 600 seconds later. Nothing in that sequence
+        # mentions a topic, which is why it read as "Flink is broken".
+        #
+        # Creating them up front removes the ordering dependency entirely: the
+        # source starts on an empty topic and waits, which is what it is for.
+        # The partition count matches topic.creation.default.partitions in the
+        # connector config, so Debezium finds what it would have made.
+        "kafka-init": service("kafka", entrypoint=["/bin/bash", "-lc"], command=[
+            "rpk topic create " + " ".join(cdc_topics()) +
+            " -p 3 -r 1 --brokers nda-kafka:9092 || true; "
+            # `create` reports an existing topic as an error, so the exit code is
+            # not the answer. Whether every topic is there afterwards is.
+            # $$t, not $t: Compose interpolates the file before the shell ever
+            # sees it, so a bare $t arrives empty.
+            "for t in " + " ".join(cdc_topics()) + "; do "
+            "rpk topic describe \"$$t\" --brokers nda-kafka:9092 >/dev/null || "
+            "{ echo \"missing topic $$t\"; exit 1; }; done; echo 'CDC topics ready'"],
+            mem_limit="256m", restart="no"),
+        # Submit the SQL StatementSet after the catalog and source have been
+        # provisioned.  A JobManager and TaskManager alone do no processing;
+        # without this service a green Compose boot still serves empty tables.
+        "flink-sql": service("flink", command=["bash", "-lc",
+            "mkdir -p /opt/flink/state/checkpoints /opt/flink/state/savepoints && "
+            "exec /opt/flink/bin/sql-client.sh -f /opt/nda/medallion.sql"],
+            env_file=secret_env,
+            environment={"FLINK_PROPERTIES": flink_properties, **flink_aws},
+            volumes=["flink-state:/opt/flink/state"], mem_limit="1400m", restart="no"),
         "keycloak": service("keycloak", name="keycloak", env_file=secret_env,
             command=["start", "--http-enabled=true", "--http-port=8180",
                      "--hostname=" + (keycloak_url or "http://nda-keycloak:8180"),
@@ -163,17 +247,22 @@ def topology(name, runtime, images, *, production=False, keycloak_url=None):
         "iceberg-rest": ["postgres", "minio"],
         "keycloak": ["postgres"],
         "connect": ["kafka", "sqlserver"],
-        "jobmanager": ["kafka", "iceberg-rest"],
+        "jobmanager": ["kafka", "iceberg-rest", "flink-init"],
         "taskmanager": ["jobmanager"],
+        "kafka-init": ["kafka"],
+        "flink-sql": ["jobmanager", "taskmanager", "iceberg-rest", "kafka", "kafka-init"],
         "trino": ["iceberg-rest", "keycloak"],
         "audit": ["trino"],
         "api": ["trino", "opa"],
         "identity": ["keycloak", "trino"],
-        "tools": ["trino", "keycloak", "connect", "jobmanager", "audit"],
+        "tools": ["trino", "keycloak", "connect", "jobmanager", "flink-sql", "audit"],
     }
     for name, upstreams in ordering.items():
         s[name]["depends_on"] = {
-            up: {"condition": "service_healthy" if "healthcheck" in s[up] else "service_started"}
+            up: {"condition": ("service_completed_successfully"
+                                if up in ("flink-init", "kafka-init")
+                                else "service_healthy" if "healthcheck" in s[up]
+                                else "service_started")}
             for up in upstreams}
     for v in s.values():
         v["logging"] = {"driver": "json-file", "options": {"max-size": "10m", "max-file": "3"}}
