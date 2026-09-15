@@ -40,7 +40,13 @@ jobs:
 
       # Offline: locks pinned, modules import, Dockerfile inputs present,
       # deployment guards refuse what they should, access-rule invariants hold.
+      # CATALOG_CHECK_REGISTRY makes this also confirm every pinned image still
+      # resolves. An upstream that moves registries - MinIO left Docker Hub -
+      # otherwise surfaces four minutes into the integration job as "access
+      # denied", which reads like a credentials problem and is not.
       - name: Validate
+        env:
+          CATALOG_CHECK_REGISTRY: "1"
         run: python -m delivery.validate
 
       - name: Unit tests

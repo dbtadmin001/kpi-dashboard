@@ -12,6 +12,7 @@ what they are supposed to refuse.
 """
 import importlib
 import json
+import os
 import pathlib
 import re
 import sys
@@ -53,6 +54,25 @@ def supply_chain(results):
     images = json.loads((ROOT / "delivery/images.lock.json").read_text(encoding="utf-8"))
     unpinned = [k for k, v in images.items() if k != "platform" and not DIGEST.search(v)]
     _check(results, "every base image pinned by digest", not unpinned, ", ".join(unpinned))
+
+    # A digest that no longer resolves is the failure that cost us a CI run:
+    # MinIO stopped publishing to Docker Hub, the pin stayed valid-looking, and
+    # the build got four minutes in before `docker compose up` said "access
+    # denied". Checking the registry is a network call, so it is opt-in - but CI
+    # sets CATALOG_CHECK_REGISTRY=1 and finds it in seconds instead.
+    if os.environ.get("CATALOG_CHECK_REGISTRY", "").lower() in ("1", "true", "yes"):
+        import subprocess
+        unresolvable = []
+        for name, reference in images.items():
+            if name == "platform":
+                continue
+            probe = subprocess.run(["docker", "manifest", "inspect", reference],
+                                   capture_output=True, text=True, timeout=120,
+                                   env={**os.environ, "MSYS_NO_PATHCONV": "1"})
+            if probe.returncode != 0:
+                unresolvable.append(name)
+        _check(results, "every pinned image still resolves in its registry",
+               not unresolvable, ", ".join(unresolvable))
 
     jars = json.loads((ROOT / "delivery/jars.lock.json").read_text(encoding="utf-8"))
     bad = [j["name"] for j in jars if not re.fullmatch(r"[0-9a-f]{64}", j.get("sha256", ""))]
