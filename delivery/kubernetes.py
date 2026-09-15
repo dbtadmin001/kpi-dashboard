@@ -313,7 +313,13 @@ def catalog_and_identity(image, nodes, keycloak_url):
                     {"name": "KC_HEALTH_ENABLED", "value": "true"},
                     {"name": "KC_BOOTSTRAP_ADMIN_USERNAME", "value": "admin"},
                     {"name": "JAVA_OPTS_KC_HEAP", "value": "-Xms256m -Xmx768m"},
-                    *_secret_env("KC_DB_PASSWORD", "KEYCLOAK_ADMIN_PASSWORD")],
+                    # KC_BOOTSTRAP_ADMIN_PASSWORD is the name Keycloak 26 reads;
+                    # KEYCLOAK_ADMIN_PASSWORD is what everything else here calls
+                    # it and what identity.py and Terraform expect. Both are
+                    # projected from the same secret key - with only the second,
+                    # Keycloak sees an admin username and no password and exits.
+                    *_secret_env("KC_DB_PASSWORD", "KEYCLOAK_ADMIN_PASSWORD",
+                                 "KC_BOOTSTRAP_ADMIN_PASSWORD")],
             "resources": _resources("250m", "768Mi", "1", "1200Mi"),
             # Keycloak's own readiness endpoint on the management port: it knows
             # whether the database migration finished, which a TCP check does not.
