@@ -167,6 +167,53 @@ def capacity():
     }
 
 
+# --------------------------------------------------------------------------
+# Delivery control plane
+# --------------------------------------------------------------------------
+@app.get("/v1/delivery")
+def delivery(refresh: bool = True):
+    """What is where, what is building, and what could move next.
+
+    `refresh` pulls the newest CI runs on the way past, so the page is current
+    without a background worker. It is a read of a public API, and it fails
+    quietly - a build list that cannot load must not take the view down.
+    """
+    from delivery.promote import LADDER, STATEFUL, STATELESS
+    from .collectors.builds import refresh as pull_builds
+
+    if refresh:
+        try:
+            pull_builds(_conn, 20)
+        except Exception:                          # noqa: BLE001 - detail, not the point
+            pass
+
+    environments = []
+    for index, name in enumerate(LADDER):
+        state = store.get_environment(_conn, name) or {}
+        artifact = store.get_artifact(_conn, state.get("artifact")) if state.get("artifact") else None
+        environments.append({
+            "name": name, "rank": index,
+            "artifact": state.get("artifact"), "status": state.get("status"),
+            "since": state.get("since"),
+            "git_sha": (artifact or {}).get("git_sha"),
+            "history": store.promotions(_conn, name, 6),
+        })
+
+    items = store.artifacts(_conn, 12)
+    for artifact in items:
+        proven = {v["environment"]: v["status"] for v in artifact["verifications"]}
+        artifact["gates"] = [
+            {"environment": name,
+             "state": proven.get(name, "not run"),
+             # The next rung is only reachable once this one passed.
+             "eligible": index == 0 or proven.get(LADDER[index - 1]) == "passed"}
+            for index, name in enumerate(LADDER)]
+
+    return {"ladder": LADDER, "environments": environments, "artifacts": items,
+            "builds": store.builds(_conn, 20),
+            "replaceable": list(STATELESS), "carried_forward": list(STATEFUL)}
+
+
 @app.get("/v1/audit")
 def audit(limit: int = Query(200, le=1000)):
     return {"entries": store.audit(_conn, limit)}

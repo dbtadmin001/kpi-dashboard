@@ -121,6 +121,16 @@ input[type=search]:focus,select:focus{outline:2px solid var(--accent);outline-of
 .linkish{all:unset;cursor:pointer;color:var(--accent);font-size:12.5px;font-weight:500}
 .linkish:hover{text-decoration:underline}
 
+/* ---- pipeline ---- */
+.pipeline{display:flex;align-items:stretch;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.stage{flex:1 1 200px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;gap:5px;align-content:start;box-shadow:var(--sh)}
+.stage.live{border-left:3px solid var(--ok)}
+.stage-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.stage-h h3{font:600 14px var(--sans);margin:0;text-transform:capitalize}
+.stage .art{font:500 13px var(--mono)}
+.stage .meta{font-size:12px;color:var(--soft)}
+.arrow{align-self:center;color:var(--soft);font-size:19px}
+
 /* ---- graph ---- */
 svg.g{width:100%;height:auto;display:block;background:var(--sunken)}
 svg.g text{font:500 11px var(--sans);fill:var(--ink)}
@@ -163,6 +173,7 @@ pre{background:var(--sunken);border:1px solid var(--line-2);border-radius:6px;pa
 
     <div class="navlabel">Explore</div>
     <button data-v="home" class="on">Home</button>
+    <button data-v="ship">Deployments</button>
     <button data-v="all">All resources <span class="n" id="n-all"></span></button>
     <button data-v="map">Relationship map</button>
     <button data-v="who">Who has access</button>
@@ -228,7 +239,7 @@ function wire(){
 }
 async function render(){
   const m=$("#main"); m.innerHTML=`<div class="empty">Loading…</div>`;
-  try{ await ({home,all:allRes,map,who,health,blast,activity}[V])(m); }
+  try{ await ({home,ship,all:allRes,map,who,health,blast,activity}[V])(m); }
   catch(e){ m.innerHTML=`<div class="empty">Could not load this view.<br><span class="soft">${esc(e.message)}</span></div>`; }
 }
 
@@ -270,6 +281,92 @@ function openGroup(key){
   document.querySelectorAll("aside button").forEach(x=>x.classList.remove("on"));
   const b=document.querySelector(`aside button[data-g="${key}"]`); if(b) b.classList.add("on");
   V="all"; F={group:key}; render();
+}
+
+/* ================= DEPLOYMENTS ================= */
+const buildPill=b=>{
+  if(b.status!=="completed") return `<span class="pill p-warn"><span class="dot"></span>Running</span>`;
+  if(b.conclusion==="success") return `<span class="pill p-ok"><span class="dot"></span>Passed</span>`;
+  if(b.conclusion==="cancelled") return `<span class="pill p-n">Cancelled</span>`;
+  return `<span class="pill p-bad"><span class="dot"></span>Failed</span>`;
+};
+const ago=t=>{if(!t)return"—";const s=Date.now()/1000-t;
+  if(s<90)return"just now";if(s<5400)return Math.round(s/60)+"m ago";
+  if(s<172800)return Math.round(s/3600)+"h ago";return Math.round(s/86400)+"d ago";};
+
+function buildRows(builds){
+  return builds.map(b=>{
+    const broke=(b.steps||[]).flatMap(j=>(j.steps||[]).filter(s=>s.conclusion==="failure")
+      .map(s=>j.job+" · "+s.name));
+    return `<tr><td><span class="nm">${esc(b.name||"build")}</span>${
+      broke.length?`<br><span class="id" style="color:var(--bad)">stopped at ${esc(broke[0])}</span>`:""}</td>
+      <td class="soft">${esc(b.branch||"")}</td><td class="id">${esc((b.sha||"").slice(0,8))}</td>
+      <td>${buildPill(b)}</td><td class="soft">${ago(b.started)}</td>
+      <td>${b.url?`<a class="linkish" href="${esc(b.url)}" target="_blank" rel="noopener">Open</a>`:""}</td></tr>`;
+  }).join("")||`<tr><td colspan="6" class="soft">No builds found.</td></tr>`;
+}
+
+async function ship(m){
+  const d=await api("/v1/delivery");
+  const running=d.builds.filter(b=>b.status!=="completed").length;
+  m.innerHTML=`
+    <div class="page"><h2>Deployments</h2>
+      <p>An artifact is built once and moves forward. It only enters an environment after it has
+         been proven in the one before &mdash; merging a pull request makes it <em>eligible</em>,
+         it does not ship it.</p></div>
+
+    <div class="pipeline">
+      ${d.environments.map((e,i)=>`
+        <div class="stage ${e.artifact?"live":""}">
+          <div class="stage-h"><h3>${esc(e.name)}</h3>
+            ${e.artifact?`<span class="pill p-ok"><span class="dot"></span>Live</span>`
+                        :`<span class="pill p-n">Empty</span>`}</div>
+          ${e.artifact?`<div class="art">${esc(e.artifact)}</div>
+             <div class="meta">commit ${esc(e.git_sha||"?")} &middot; ${ago(e.since)}</div>`
+                      :`<div class="meta">Nothing deployed here yet.</div>`}
+          ${e.history.length>1?`<div class="meta">previous: ${esc(e.history[1].artifact)}</div>`:""}
+        </div>${i<d.environments.length-1?`<div class="arrow">&rarr;</div>`:""}`).join("")}
+    </div>
+
+    <div class="panel"><header><h3>Builds</h3>
+      <span class="hint">${running?running+" running now":"Nothing building"} &middot; refreshes every 15s</span></header>
+      <div class="body"><table>
+        <thead><tr><th>Workflow</th><th>Branch</th><th>Commit</th><th>Result</th><th>When</th><th></th></tr></thead>
+        <tbody id="builds">${buildRows(d.builds)}</tbody>
+      </table></div></div>
+
+    <div class="panel"><header><h3>Artifacts and how far they have earned their way</h3>
+      <span class="hint">An artifact cannot enter an environment until the one before it passed</span></header>
+      <div class="body"><table>
+        <thead><tr><th>Artifact</th><th>Commit</th><th>References</th>
+          ${d.ladder.map(l=>`<th>${esc(l)}</th>`).join("")}</tr></thead><tbody>
+        ${d.artifacts.map(a=>`<tr>
+          <td><span class="nm">${esc(a.key)}</span></td>
+          <td class="id">${esc(a.git_sha||"?")}</td>
+          <td>${a.immutable?`<span class="pill p-ok">digest</span>`:`<span class="pill p-warn">tag only</span>`}</td>
+          ${a.gates.map(g=>`<td>${
+            g.state==="passed"?`<span class="pill p-ok">passed</span>`
+            :g.state==="failed"?`<span class="pill p-bad">failed</span>`
+            :g.eligible?`<span class="pill p-n">ready</span>`
+            :`<span class="pill p-n" style="opacity:.45">blocked</span>`}</td>`).join("")}
+        </tr>`).join("")||`<tr><td colspan="6" class="soft">No artifacts recorded yet.</td></tr>`}
+      </tbody></table></div></div>
+
+    <div class="panel"><header><h3>What a promotion actually replaces</h3></header>
+      <div class="body pad" style="display:grid;gap:10px">
+        <div><span class="pill p-ok">Replaced wholesale</span>
+          <span class="soft" style="font-size:12.5px"> ${d.replaceable.join(", ")} &mdash;
+          stateless, so going back is instant.</span></div>
+        <div><span class="pill p-warn">Carried forward in place</span>
+          <span class="soft" style="font-size:12.5px"> ${d.carried_forward.join(", ")} &mdash;
+          these hold your data. Going back here is a restore, not a rollback.</span></div>
+      </div></div>`;
+
+  clearInterval(window._poll);
+  window._poll=setInterval(async()=>{
+    if(V!=="ship"){clearInterval(window._poll);return;}
+    try{const f=await api("/v1/delivery");const t=$("#builds");if(t)t.innerHTML=buildRows(f.builds);}catch(err){}
+  },15000);
 }
 
 /* ================= ALL RESOURCES ================= */

@@ -57,6 +57,34 @@ CREATE TABLE IF NOT EXISTS audit (
     action TEXT, target TEXT, request_id TEXT
 );
 CREATE INDEX IF NOT EXISTS audit_at ON audit(at);
+
+-- ---------------------------------------------------------------------
+-- Delivery: which artifact is in which environment, and how it got there.
+-- Separate from `resource` on purpose. A resource is something that exists;
+-- an artifact is something that was built, and the two have different lives.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS artifact (
+    key TEXT PRIMARY KEY, git_sha TEXT, images TEXT, source TEXT,
+    immutable INTEGER DEFAULT 0, built_at REAL
+);
+CREATE TABLE IF NOT EXISTS verification (
+    artifact TEXT, environment TEXT, status TEXT, detail TEXT, at REAL,
+    PRIMARY KEY (artifact, environment)
+);
+CREATE TABLE IF NOT EXISTS promotion (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, artifact TEXT, from_env TEXT, to_env TEXT,
+    actor TEXT, action TEXT, detail TEXT, at REAL
+);
+CREATE INDEX IF NOT EXISTS promotion_env ON promotion(to_env, id DESC);
+CREATE TABLE IF NOT EXISTS environment (
+    name TEXT PRIMARY KEY, artifact TEXT, status TEXT, since REAL
+);
+-- Build runs, from CI or from a local build. The control plane reads this.
+CREATE TABLE IF NOT EXISTS build (
+    id TEXT PRIMARY KEY, source TEXT, name TEXT, branch TEXT, sha TEXT,
+    status TEXT, conclusion TEXT, started REAL, finished REAL, url TEXT, steps TEXT
+);
+CREATE INDEX IF NOT EXISTS build_started ON build(started DESC);
 """
 
 
@@ -293,3 +321,103 @@ def record_audit(conn, principal, action, target, request_id):
 def audit(conn, limit=200):
     return [dict(r) for r in conn.execute(
         "SELECT * FROM audit ORDER BY id DESC LIMIT ?", (limit,))]
+
+
+# --------------------------------------------------------------------------
+# Delivery
+# --------------------------------------------------------------------------
+def put_artifact(conn, key, git_sha, images, source, immutable=False):
+    conn.execute("""INSERT INTO artifact (key, git_sha, images, source, immutable, built_at)
+                    VALUES (?,?,?,?,?,?)
+                    ON CONFLICT(key) DO UPDATE SET git_sha=excluded.git_sha,
+                    images=excluded.images, immutable=excluded.immutable""",
+                 (key, git_sha, json.dumps(images), source, 1 if immutable else 0, time.time()))
+
+
+def get_artifact(conn, key):
+    row = conn.execute("SELECT * FROM artifact WHERE key=?", (key,)).fetchone()
+    if not row:
+        return None
+    item = dict(row)
+    item["images"] = json.loads(item.get("images") or "{}")
+    return item
+
+
+def artifacts(conn, limit=25):
+    out = []
+    for row in conn.execute("SELECT * FROM artifact ORDER BY built_at DESC LIMIT ?", (limit,)):
+        item = dict(row)
+        item["images"] = json.loads(item.get("images") or "{}")
+        item["verifications"] = [dict(v) for v in conn.execute(
+            "SELECT environment, status, at FROM verification WHERE artifact=?", (item["key"],))]
+        out.append(item)
+    return out
+
+
+def put_verification(conn, artifact, environment, status, detail=""):
+    conn.execute("""INSERT INTO verification (artifact, environment, status, detail, at)
+                    VALUES (?,?,?,?,?)
+                    ON CONFLICT(artifact, environment) DO UPDATE SET status=excluded.status,
+                    detail=excluded.detail, at=excluded.at""",
+                 (artifact, environment, status, detail, time.time()))
+
+
+def get_verification(conn, artifact, environment):
+    row = conn.execute("SELECT * FROM verification WHERE artifact=? AND environment=?",
+                       (artifact, environment)).fetchone()
+    return dict(row) if row else None
+
+
+def put_promotion(conn, artifact, from_env, to_env, actor, action, detail=""):
+    conn.execute("""INSERT INTO promotion (artifact, from_env, to_env, actor, action, detail, at)
+                    VALUES (?,?,?,?,?,?,?)""",
+                 (artifact, from_env, to_env, actor, action, detail, time.time()))
+
+
+def promotions(conn, environment=None, limit=50):
+    if environment:
+        rows = conn.execute("SELECT * FROM promotion WHERE to_env=? ORDER BY id DESC LIMIT ?",
+                            (environment, limit))
+    else:
+        rows = conn.execute("SELECT * FROM promotion ORDER BY id DESC LIMIT ?", (limit,))
+    return [dict(r) for r in rows]
+
+
+def put_environment(conn, name, artifact, status):
+    conn.execute("""INSERT INTO environment (name, artifact, status, since) VALUES (?,?,?,?)
+                    ON CONFLICT(name) DO UPDATE SET artifact=excluded.artifact,
+                    status=excluded.status, since=excluded.since""",
+                 (name, artifact, status, time.time()))
+
+
+def get_environment(conn, name):
+    row = conn.execute("SELECT * FROM environment WHERE name=?", (name,)).fetchone()
+    return dict(row) if row else None
+
+
+def environments(conn):
+    return [dict(r) for r in conn.execute("SELECT * FROM environment")]
+
+
+def put_build(conn, build: dict):
+    conn.execute("""INSERT INTO build (id, source, name, branch, sha, status, conclusion,
+                    started, finished, url, steps) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                    ON CONFLICT(id) DO UPDATE SET status=excluded.status,
+                    conclusion=excluded.conclusion, finished=excluded.finished,
+                    steps=excluded.steps""",
+                 (build["id"], build.get("source"), build.get("name"), build.get("branch"),
+                  build.get("sha"), build.get("status"), build.get("conclusion"),
+                  build.get("started"), build.get("finished"), build.get("url"),
+                  json.dumps(build.get("steps") or [])))
+
+
+def builds(conn, limit=40):
+    out = []
+    for row in conn.execute("SELECT * FROM build ORDER BY started DESC LIMIT ?", (limit,)):
+        item = dict(row)
+        try:
+            item["steps"] = json.loads(item.get("steps") or "[]")
+        except ValueError:
+            item["steps"] = []
+        out.append(item)
+    return out

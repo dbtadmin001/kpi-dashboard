@@ -97,3 +97,58 @@ def test_edges_carry_the_rule_that_produced_them(tmp_path):
     edge = bucket["edges_in"][0]
     assert edge["rule"] == "catalog-warehouse-uri" and edge["confidence"] == 0.6
     conn.close()
+
+
+# --------------------------------------------------------------------------
+# Promotion: the thing you tested is the thing you ship
+# --------------------------------------------------------------------------
+def test_an_artifact_cannot_skip_an_environment(tmp_path, monkeypatch):
+    """Promotion is not a shortcut around testing."""
+    monkeypatch.setenv("CATALOG_DB", str(tmp_path / "p.db"))
+    import importlib
+    from catalog import store as store_module
+    importlib.reload(store_module)
+    from delivery import promote as promote_module
+    importlib.reload(promote_module)
+
+    digest = "@sha256:" + "b" * 64
+    images = {k: f"reg/nda-{k}{digest}" for k in ("app", "flink", "catalog")}
+    key = promote_module.record(images=images, sha="abc123")
+
+    with pytest.raises(SystemExit, match="has not passed verification in staging"):
+        promote_module.promote(key, "production")
+
+    promote_module.verify(key, "ephemeral")
+    promote_module.promote(key, "staging")          # allowed: ephemeral passed
+    with pytest.raises(SystemExit, match="has not passed verification in staging"):
+        promote_module.promote(key, "production")   # deployed != verified
+
+    promote_module.verify(key, "staging")
+    promote_module.promote(key, "production")       # now it has earned it
+
+
+def test_production_refuses_a_mutable_reference(tmp_path, monkeypatch):
+    """A tag can be moved under you; a digest cannot."""
+    monkeypatch.setenv("CATALOG_DB", str(tmp_path / "q.db"))
+    import importlib
+    from catalog import store as store_module
+    importlib.reload(store_module)
+    from delivery import promote as promote_module
+    importlib.reload(promote_module)
+
+    key = promote_module.record(images={k: f"reg/nda-{k}:latest"
+                                        for k in ("app", "flink", "catalog")}, sha="def456")
+    promote_module.verify(key, "ephemeral")
+    promote_module.verify(key, "staging")
+    with pytest.raises(SystemExit, match="tag-only and cannot enter production"):
+        promote_module.promote(key, "production")
+
+
+def test_the_artifact_key_follows_the_bytes_not_the_tag():
+    """Two builds of one commit are two artifacts, because they are."""
+    from delivery.promote import artifact_key
+    a = {"app": "r/a@sha256:" + "1" * 64, "flink": "r/f@sha256:" + "2" * 64,
+         "catalog": "r/c@sha256:" + "3" * 64}
+    b = dict(a, app="r/a@sha256:" + "9" * 64)
+    assert artifact_key(a) == artifact_key(dict(reversed(list(a.items()))))
+    assert artifact_key(a) != artifact_key(b)
