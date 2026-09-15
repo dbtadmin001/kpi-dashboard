@@ -9,16 +9,17 @@ it runs open, and setting CATALOG_REQUIRE_AUTH=1 turns on OIDC against the same
 Keycloak realm everything else uses. What is NOT optional is the audit log -
 every request is recorded whether or not a principal was proven.
 """
+import contextlib
 import os
 import pathlib
 import time
 import uuid
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import store
+from . import live, store
 from .collectors import REGISTRY, all_collectors, health as collector_health
 from .model import EDGE_TYPES
 from .taxonomy import (EDGE_LABELS, GROUP_ABOUT, GROUP_LABEL, GROUPS,
@@ -28,9 +29,30 @@ from .resolver import relink, run_collector
 STATIC = pathlib.Path(__file__).parent / "static"
 REQUIRE_AUTH = os.environ.get("CATALOG_REQUIRE_AUTH", "").lower() in ("1", "true", "yes")
 
-app = FastAPI(title="Infrastructure Catalog", version="0.1.0",
-              description="Read-only catalog of Terraform, Kubernetes and platform resources.")
 _conn = store.connect()
+
+
+@contextlib.asynccontextmanager
+async def _lifespan(_app):
+    """Poll while the server is serving, and not a moment longer.
+
+    Polling starts here rather than on the first page load, so a tab opened
+    during a build already has current data. It is one thread for the process
+    however many tabs are open. CATALOG_POLL=0 turns it off for a test or an
+    air-gapped run; the delivery view then serves whatever `catalog.cli collect`
+    last wrote, and says so.
+    """
+    watcher = None
+    if os.environ.get("CATALOG_POLL", "1").lower() not in ("0", "false", "no"):
+        watcher = live.poller(_conn)
+    yield
+    if watcher:
+        watcher.stop()
+
+
+app = FastAPI(title="Infrastructure Catalog", version="0.1.0",
+              description="Read-only catalog of Terraform, Kubernetes and platform resources.",
+              lifespan=_lifespan)
 
 
 def principal(authorization: str = None) -> str:
@@ -171,21 +193,24 @@ def capacity():
 # Delivery control plane
 # --------------------------------------------------------------------------
 @app.get("/v1/delivery")
-def delivery(refresh: bool = True):
+def delivery(refresh: bool = False):
     """What is where, what is building, and what could move next.
 
-    `refresh` pulls the newest CI runs on the way past, so the page is current
-    without a background worker. It is a read of a public API, and it fails
-    quietly - a build list that cannot load must not take the view down.
+    This reads the store and returns. It used to pull GitHub inline, which made
+    every page load cost up to twenty API calls, put the whole view behind a
+    network round trip, and exhausted the hourly budget in under a minute - after
+    which it served stale data without saying so.
+
+    catalog/live.py now polls once for the whole process and pushes changes to
+    open tabs over /v1/delivery/stream. `refresh=1` still forces a pull for
+    somebody who wants one right now.
     """
     from delivery.promote import LADDER, STATEFUL, STATELESS
-    from .collectors.builds import refresh as pull_builds
 
     if refresh:
-        try:
-            pull_builds(_conn, 20)
-        except Exception:                          # noqa: BLE001 - detail, not the point
-            pass
+        watcher = live.poller(_conn)
+        if watcher:
+            watcher.nudge()
 
     environments = []
     for index, name in enumerate(LADDER):
@@ -209,9 +234,51 @@ def delivery(refresh: bool = True):
              "eligible": index == 0 or proven.get(LADDER[index - 1]) == "passed"}
             for index, name in enumerate(LADDER)]
 
+    watcher = live.poller(_conn)
     return {"ladder": LADDER, "environments": environments, "artifacts": items,
             "builds": store.builds(_conn, 20),
-            "replaceable": list(STATELESS), "carried_forward": list(STATEFUL)}
+            "replaceable": list(STATELESS), "carried_forward": list(STATEFUL),
+            # How fresh this is and why, so the page can say so instead of
+            # showing month-old runs as though they were current.
+            "feed": dict(watcher.status, version=watcher.version) if watcher else
+                    {"state": "off", "detail": "poller not started", "version": 0}}
+
+
+@app.get("/v1/delivery/stream")
+async def delivery_stream(request: Request):
+    """Server-sent events: one message per actual change, plus a heartbeat.
+
+    The browser holds this open instead of re-asking every fifteen seconds. The
+    server watches an in-process counter - no GitHub call happens here - so a
+    status change reaches every open tab within about a quarter second, and a
+    hundred tabs cost the same upstream as one.
+    """
+    watcher = live.poller(_conn)
+
+    async def events():
+        import asyncio
+        import json as _json
+        seen = -1
+        beat = 0.0
+        while True:
+            if await request.is_disconnected():
+                return
+            now = time.monotonic()
+            current = watcher.version if watcher else 0
+            # A heartbeat every 20s keeps proxies from closing an idle stream,
+            # and tells the page the feed is alive when nothing is building.
+            if current != seen or now - beat > 20:
+                seen, beat = current, now
+                payload = {"version": current,
+                           "feed": dict(watcher.status) if watcher else {"state": "off"},
+                           "builds": store.builds(_conn, 20)}
+                yield "event: delivery\ndata: " + _json.dumps(payload) + "\n\n"
+            await asyncio.sleep(0.25)
+
+    return StreamingResponse(events(), media_type="text/event-stream", headers={
+        "Cache-Control": "no-cache, no-transform",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no"})
 
 
 @app.get("/v1/audit")

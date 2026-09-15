@@ -1,8 +1,15 @@
 """Build runs, so the control plane can show what is happening now.
 
 Reads GitHub Actions. A public repository serves workflow runs without a token,
-which is what makes this useful on day one; GITHUB_TOKEN is picked up when set,
-for a private repo or a higher rate limit.
+which is what makes this useful on day one - but anonymous GitHub allows sixty
+calls an hour and one page refresh can cost twenty, so in practice a token is
+not optional. Rather than demand one, `_token` finds the one already on the
+machine: GITHUB_TOKEN, then `gh auth token`, then the git credential helper that
+`git push` is already using for github.com. All three are the same credential
+for the same host, and any of them raises the budget to 5000 an hour.
+
+Running out is reported, never swallowed. A view that quietly stops updating is
+worse than one that says it has stopped.
 
 Steps are fetched for runs that are in progress or that failed - the two cases
 where somebody is actually looking. A run that succeeded twenty minutes ago does
@@ -19,6 +26,52 @@ from datetime import datetime
 API = "https://api.github.com"
 
 
+class RateLimited(Exception):
+    """The budget is spent. Carries how long until it is not."""
+
+    def __init__(self, retry_after, authenticated):
+        super().__init__(f"GitHub rate limit reached; resets in {int(retry_after)}s")
+        self.retry_after = retry_after
+        self.authenticated = authenticated
+
+
+_token_cache = []
+
+# What `git credential fill` expects on stdin to be asked about github.com.
+CREDENTIAL_QUERY = "\n".join(["protocol=https", "host=github.com", "", ""])
+
+
+def _token():
+    """Whatever GitHub credential this machine already has, in order of intent.
+
+    The git credential helper is last because it is the least explicit - but it
+    is also the one that is always there on a machine that has pushed, and it is
+    only ever replayed to the host it was stored for.
+    """
+    if _token_cache:
+        return _token_cache[0] or None
+    found = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if not found:
+        for argv, feed in ((["gh", "auth", "token"], None),
+                           (["git", "credential", "fill"], CREDENTIAL_QUERY)):
+            try:
+                done = subprocess.run(argv, input=feed, capture_output=True, text=True,
+                                      timeout=10)
+            except (OSError, subprocess.SubprocessError):
+                continue
+            if done.returncode != 0:
+                continue
+            out = done.stdout.strip()
+            if argv[0] == "git":
+                out = next((l[len("password="):] for l in out.splitlines()
+                            if l.startswith("password=")), "")
+            if out:
+                found = out.strip()
+                break
+    _token_cache.append(found or "")
+    return found or None
+
+
 def _repo():
     if os.environ.get("CATALOG_REPO"):
         return os.environ["CATALOG_REPO"]
@@ -32,15 +85,38 @@ def _repo():
     return None
 
 
+# What the last call was told about the budget, so the poller can pace itself
+# instead of discovering the limit as a 403.
+BUDGET = {"remaining": None, "reset": None, "authenticated": False}
+
+
 def _get(path):
     request = urllib.request.Request(API + path, headers={
         "Accept": "application/vnd.github+json",
         "User-Agent": "nda-infrastructure-catalog"})
-    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    token = _token()
     if token:
         request.add_header("Authorization", f"Bearer {token}")
-    with urllib.request.urlopen(request, timeout=25) as response:
-        return json.load(response)
+    BUDGET["authenticated"] = bool(token)
+    try:
+        with urllib.request.urlopen(request, timeout=25) as response:
+            _remember(response.headers)
+            return json.load(response)
+    except urllib.error.HTTPError as error:
+        _remember(error.headers)
+        # 403 and 429 both mean "not now"; only a spent budget says how long.
+        if error.code in (403, 429) and error.headers.get("X-RateLimit-Remaining") == "0":
+            reset = BUDGET["reset"] or (time.time() + 60)
+            raise RateLimited(max(1.0, reset - time.time()), BUDGET["authenticated"]) from None
+        raise
+
+
+def _remember(headers):
+    try:
+        BUDGET["remaining"] = int(headers.get("X-RateLimit-Remaining"))
+        BUDGET["reset"] = int(headers.get("X-RateLimit-Reset"))
+    except (TypeError, ValueError):
+        pass
 
 
 def _epoch(value):
@@ -61,6 +137,14 @@ class BuildCollector:
 
     def __init__(self, repo=None):
         self.repo = repo or _repo()
+
+    @property
+    def remaining(self):
+        return BUDGET["remaining"]
+
+    @property
+    def authenticated(self):
+        return BUDGET["authenticated"] or bool(_token())
 
     def health(self):
         if not self.repo:
@@ -103,6 +187,8 @@ class BuildCollector:
     def _steps(self, run_id):
         try:
             jobs = _get(f"/repos/{self.repo}/actions/runs/{run_id}/jobs")
+        except RateLimited:
+            raise                                  # the budget is not a detail
         except Exception:                          # noqa: BLE001 - detail is optional
             return []
         steps = []
@@ -118,7 +204,12 @@ class BuildCollector:
 
 
 def refresh(conn, limit=25):
-    """Pull the latest runs into the store. Safe to call on every page load."""
+    """Pull the latest runs into the store.
+
+    Kept for `catalog.cli collect` and for an explicit refresh. The delivery view
+    no longer calls it per request - catalog/live.py polls once for every open
+    tab, which is what makes a faster refresh affordable.
+    """
     from .. import store
     collector = BuildCollector()
     if not collector.repo:

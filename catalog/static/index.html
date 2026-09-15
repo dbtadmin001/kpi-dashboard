@@ -238,6 +238,9 @@ function wire(){
   });
 }
 async function render(){
+  // Leaving a view takes its live connection with it. Without this, navigating
+  // away from Deployments left an open stream per visit.
+  if(typeof stopLive==="function") stopLive();
   const m=$("#main"); m.innerHTML=`<div class="empty">Loading…</div>`;
   try{ await ({home,ship,all:allRes,map,who,health,blast,activity}[V])(m); }
   catch(e){ m.innerHTML=`<div class="empty">Could not load this view.<br><span class="soft">${esc(e.message)}</span></div>`; }
@@ -329,7 +332,7 @@ async function ship(m){
     </div>
 
     <div class="panel"><header><h3>Builds</h3>
-      <span class="hint">${running?running+" running now":"Nothing building"} &middot; refreshes every 15s</span></header>
+      <span class="hint" id="feed">${feedLine(d.feed,running)}</span></header>
       <div class="body"><table>
         <thead><tr><th>Workflow</th><th>Branch</th><th>Commit</th><th>Result</th><th>When</th><th></th></tr></thead>
         <tbody id="builds">${buildRows(d.builds)}</tbody>
@@ -362,11 +365,64 @@ async function ship(m){
           these hold your data. Going back here is a restore, not a rollback.</span></div>
       </div></div>`;
 
-  clearInterval(window._poll);
+  liveBuilds();
+}
+
+/* The builds table follows the server instead of asking it on a timer.
+   The server holds one GitHub poller for every open tab, so this stream is
+   free: a status change shows up here in well under a second, and closing the
+   view closes the connection. If EventSource is unavailable or the stream
+   drops, it falls back to asking - slowly, because that path costs API budget. */
+function liveBuilds(){
+  stopLive();
+  const paint=p=>{
+    if(V!=="ship")return stopLive();
+    const t=$("#builds"); if(t&&p.builds)t.innerHTML=buildRows(p.builds);
+    const f=$("#feed");
+    if(f)f.innerHTML=feedLine(p.feed,(p.builds||[]).filter(b=>b.status!=="completed").length);
+  };
+  if(window.EventSource){
+    const es=new EventSource("/v1/delivery/stream");
+    window._live=es;
+    es.addEventListener("delivery",e=>{try{paint(JSON.parse(e.data));}catch(err){}});
+    // onerror fires on a dropped stream; the browser reconnects by itself, so
+    // only give up and fall back when the connection is actually closed.
+    es.onerror=()=>{if(es.readyState===EventSource.CLOSED){stopLive();pollBuilds();}};
+  } else pollBuilds();
+}
+
+function pollBuilds(){
   window._poll=setInterval(async()=>{
-    if(V!=="ship"){clearInterval(window._poll);return;}
-    try{const f=await api("/v1/delivery");const t=$("#builds");if(t)t.innerHTML=buildRows(f.builds);}catch(err){}
+    if(V!=="ship")return stopLive();
+    try{const f=await api("/v1/delivery");
+        const t=$("#builds");if(t)t.innerHTML=buildRows(f.builds);
+        const h=$("#feed");
+        if(h)h.innerHTML=feedLine(f.feed,f.builds.filter(b=>b.status!=="completed").length);
+    }catch(err){}
   },15000);
+}
+
+function stopLive(){
+  if(window._live){window._live.close();window._live=null;}
+  if(window._poll){clearInterval(window._poll);window._poll=null;}
+}
+
+/* Say what the feed is doing. A view that stops updating must never look the
+   same as one where nothing is happening - that is exactly how a spent GitHub
+   rate limit used to present itself. */
+function feedLine(feed,running){
+  const what=running?`<b>${running} running now</b>`:"Nothing building";
+  if(!feed)return what;
+  if(feed.state==="live")
+    return `${what} &middot; <span style="color:var(--ok)">&#9679;</span> live${
+      feed.remaining!=null?` &middot; ${feed.remaining} API calls left this hour`:""}`;
+  if(feed.state==="rate limited")
+    return `${what} &middot; <span style="color:var(--warn)">&#9679;</span> paused &mdash; ${esc(feed.detail||"")}`;
+  if(feed.state==="no repo")
+    return `${what} &middot; <span class="soft">no GitHub remote, so there are no builds to follow</span>`;
+  if(feed.state==="off")
+    return `${what} &middot; <span class="soft">live updates are switched off</span>`;
+  return `${what} &middot; <span style="color:var(--bad)">&#9679;</span> not updating &mdash; ${esc(feed.detail||feed.state||"")}`;
 }
 
 /* ================= ALL RESOURCES ================= */

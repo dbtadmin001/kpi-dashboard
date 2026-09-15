@@ -399,7 +399,17 @@ def environments(conn):
     return [dict(r) for r in conn.execute("SELECT * FROM environment")]
 
 
-def put_build(conn, build: dict):
+def put_build(conn, build: dict) -> bool:
+    """Returns whether this actually changed anything.
+
+    The live poller pushes to browsers only when something moved, so "did this
+    write change the row?" is the signal, not "did a write happen".
+    """
+    before = conn.execute(
+        "SELECT status, conclusion, finished, steps FROM build WHERE id=?",
+        (build["id"],)).fetchone()
+    after = (build.get("status"), build.get("conclusion"), build.get("finished"),
+             json.dumps(build.get("steps") or []))
     conn.execute("""INSERT INTO build (id, source, name, branch, sha, status, conclusion,
                     started, finished, url, steps) VALUES (?,?,?,?,?,?,?,?,?,?,?)
                     ON CONFLICT(id) DO UPDATE SET status=excluded.status,
@@ -409,6 +419,7 @@ def put_build(conn, build: dict):
                   build.get("sha"), build.get("status"), build.get("conclusion"),
                   build.get("started"), build.get("finished"), build.get("url"),
                   json.dumps(build.get("steps") or [])))
+    return before is None or tuple(before) != after
 
 
 def builds(conn, limit=40):
