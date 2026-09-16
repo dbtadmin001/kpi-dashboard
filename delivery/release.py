@@ -50,15 +50,36 @@ def build(registry=None, tag=None):
     tag = tag or os.environ.get("NDA_TAG") or time.strftime("%Y%m%d-%H%M%S")
     prefix = f"{registry.rstrip('/')}/" if registry else ""
     built = {}
+    # A CI runner is empty every time, so without an exported cache every build
+    # redoes apt, a hash-pinned pip install and 141MB of JVM downloads from zero.
+    # NDA_BUILD_CACHE points at a directory the runner restores and saves around
+    # the build; unset (the normal local case) this is plain `docker build`
+    # against the daemon's own layer cache, which is already warm.
+    cache = os.environ.get("NDA_BUILD_CACHE")
     for stage in STAGES:
         reference = f"{prefix}nda-{stage}:{tag}"
         print(f"--- building {stage} -> {reference}")
-        _run(["docker", "build", "-f", "delivery/Dockerfile", "--target", stage,
-              "--platform", base["platform"], "-t", reference,
-              "--build-arg", f"PYTHON_IMAGE={base['python']}",
-              "--build-arg", f"FLINK_IMAGE={base['flink']}",
-              "--build-arg", f"CATALOG_IMAGE={base['catalog_base']}",
-              "."])
+        # buildx only when there is a cache to move. Its container driver has to
+        # export the finished image back to the daemon (`--load`), which costs
+        # real time on multi-gigabyte images - worth it against a warm cache,
+        # pure overhead without one.
+        builder = ["docker", "buildx", "build"] if cache else ["docker", "build"]
+        command = builder + ["-f", "delivery/Dockerfile",
+                   "--target", stage, "--platform", base["platform"],
+                   "-t", reference,
+                   "--build-arg", f"PYTHON_IMAGE={base['python']}",
+                   "--build-arg", f"FLINK_IMAGE={base['flink']}",
+                   "--build-arg", f"CATALOG_IMAGE={base['catalog_base']}"]
+        if cache:
+            # Read from the restored cache, write the new one somewhere else:
+            # exporting over the directory being read corrupts it, and a cache
+            # that grows forever is evicted as often as it is used.
+            command += [f"--cache-from=type=local,src={cache}/{stage}",
+                        f"--cache-to=type=local,dest={cache}.new/{stage},mode=max"]
+        # buildx keeps the result in the builder unless told to hand it over, and
+        # `verify` runs these images from the local daemon.
+        command += (["--load", "."] if cache else ["."])
+        _run(command)
         if registry:
             _run(["docker", "push", reference])
             # RepoDigests is populated by the push, and is the only immutable name.
