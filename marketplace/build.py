@@ -16,7 +16,8 @@ import pathlib
 import re
 
 from .products import (MARKETPLACE_SCHEMA, PHYSICAL_SCHEMAS, PRODUCT_AUDIENCE,
-                       PRODUCTS, ROLES, SANDBOX_PREFIX, all_users, sandbox_schema)
+                       PRODUCTS, ROLES, SANDBOX_PREFIX, SEED_MEMBERS, SEED_TENANTS,
+                       all_users, sandbox_schema, tenant_schema)
 
 OUT = pathlib.Path(os.environ.get("MARKETPLACE_RUNTIME_DIR", pathlib.Path(__file__).parent / "generated"))
 
@@ -49,16 +50,39 @@ def run(conn, sql):
 # --------------------------------------------------------------------------
 # 1. The certified views. Metadata only - zero bytes written.
 # --------------------------------------------------------------------------
-def view_sql(product):
+def view_sql(product, schema=MARKETPLACE_SCHEMA, tenant=None):
+    sql = product.sql.rstrip()
+    if tenant:
+        # Product source FQNs are declarations, not SQL parsed at runtime. Every
+        # source is replaced with a tenant predicate before any aggregation.
+        for source in product.sources:
+            sql = sql.replace(source, f"(SELECT * FROM {source} WHERE tenant_id = '{tenant}')")
     return (f"CREATE OR REPLACE VIEW {product.fqn} "
             f"COMMENT '{product.title}: {product.description[:180]}' AS"
-            f"{product.sql.rstrip()}")
+            f"{sql}").replace(product.fqn, f"iceberg.{schema}.{product.name}", 1)
 
 
-def schema_sql():
-    return [
-        f"CREATE SCHEMA IF NOT EXISTS iceberg.{MARKETPLACE_SCHEMA}",
-    ]
+def schema_sql(tenants=()):
+    return [f"CREATE SCHEMA IF NOT EXISTS iceberg.{MARKETPLACE_SCHEMA}",
+            *[f"CREATE SCHEMA IF NOT EXISTS iceberg.{tenant_schema(tenant)}" for tenant in sorted(set(tenants))]]
+
+
+def assert_tenant_contract(conn):
+    """Refuse to publish tenant views over a lake that has not been migrated."""
+    missing = []
+    for product in PRODUCTS:
+        for source in product.sources:
+            _, schema, table = source.split(".", 2)
+            columns = {row[0] for row in run(conn,
+                "SELECT column_name FROM iceberg.information_schema.columns "
+                f"WHERE table_schema = '{schema}' AND table_name = '{table}'")}
+            if "tenant_id" not in columns:
+                missing.append(source)
+    if missing:
+        raise RuntimeError(
+            "Tenant marketplace views were not applied: tenant_id is missing from "
+            + ", ".join(sorted(set(missing)))
+            + ". Migrate/backfill source-to-gold data, then rerun the streaming job.")
 
 
 
@@ -77,7 +101,7 @@ MASKED_ENTITY = {"name": "entity_id",
                  "mask": "'sha256:' || to_hex(sha256(cast(entity_id as varbinary)))"}
 
 
-def access_rules(users=None, impersonators=()):
+def access_rules(users=None, impersonators=(), tenant_roles=None):
     """Rules are written against GROUPS, never against people.
 
     The one place a username appears is the personal sandbox, because the
@@ -87,6 +111,11 @@ def access_rules(users=None, impersonators=()):
     marketplace/identity.py - so nobody ever hand-grants a person anything.
     """
     users = all_users() if users is None else users
+    if tenant_roles is None:
+        tenant_roles = {(tenant, role): [user for user in users if user in members]
+                        for role, members in SEED_MEMBERS.items()
+                        for user, scopes in SEED_TENANTS.items() for tenant in scopes
+                        if user in members}
     # Who may open a session as someone else. Empty by default: impersonation is
     # a deliberate grant, so forgetting to pass it denies rather than permits.
     impersonators = sorted(impersonators)
@@ -112,8 +141,6 @@ def access_rules(users=None, impersonators=()):
             # dots into underscores, which a regex backreference cannot express.
             *[{"user": user, "schema": sandbox_schema(user), "owner": True}
               for user in users],
-            # The marketplace is readable by all roles but owned by none of them.
-            {"group": f"({everyone})", "schema": MARKETPLACE_SCHEMA, "owner": False},
         ],
         "tables": [
             # GRANT_SELECT, not just SELECT: a view owner needs it for Trino to
@@ -124,32 +151,25 @@ def access_rules(users=None, impersonators=()):
              "privileges": ["SELECT", "INSERT", "DELETE", "UPDATE", "OWNERSHIP", "GRANT_SELECT"]},
             {"group": "data_engineer",
              "privileges": ["SELECT", "INSERT", "DELETE", "UPDATE", "OWNERSHIP", "GRANT_SELECT"]},
-            # Analysts and scientists may read the physical curated layer, but the
-            # mask belongs ON this rule: Trino applies the first matching table
-            # rule, so a masking rule added later would never be reached.
-            # entity_id is classified as a pseudonymous identifier, so it is
-            # hashed here and only engineers and admins see it raw.
-            {"group": "(analyst|data_scientist)", "schema": "nda_gold",
-             "privileges": ["SELECT"], "columns": [MASKED_ENTITY]},
-            {"group": "data_scientist", "schema": "nda_silver",
-             "privileges": ["SELECT"], "columns": [MASKED_ENTITY]},
             # Sandboxes: full control inside your own, nothing in anyone else's.
             *[{"user": user, "schema": sandbox_schema(user),
                "privileges": ["SELECT", "INSERT", "DELETE", "UPDATE", "OWNERSHIP"]}
               for user in users],
         ],
     }
-    # Per-product visibility, most restrictive first.
-    for product in PRODUCTS:
-        audience = PRODUCT_AUDIENCE.get(product.name, [])
-        if not audience:
+    # A regular user never reaches global marketplace or the physical layers.
+    # They reach only a schema built for their tenant and only products their
+    # role permits. The tenant/role groups are derived from Keycloak in identity.
+    for tenant, role in sorted(tenant_roles):
+        if tenant == "*":
             continue
-        rules["tables"].append({
-            "group": "(" + "|".join(audience) + ")",
-            "schema": MARKETPLACE_SCHEMA,
-            "table": product.name,
-            "privileges": ["SELECT"],
-        })
+        schema = tenant_schema(tenant)
+        group = f"tenant_{tenant}__{role}"
+        rules["schemas"].append({"group": group, "schema": schema, "owner": False})
+        for product in PRODUCTS:
+            if role in PRODUCT_AUDIENCE.get(product.name, []):
+                rules["tables"].append({"group": group, "schema": schema,
+                                        "table": product.name, "privileges": ["SELECT"]})
     # ----------------------------------------------------------------------
     # Impersonation: the governed answer to "what does this user actually see?"
     #
@@ -248,7 +268,10 @@ def dbt_sources():
 
 def generate():
     OUT.mkdir(parents=True, exist_ok=True)
-    statements = schema_sql() + [view_sql(p) for p in PRODUCTS]
+    # Derive tenant schemas from the same seed used for generated bootstrap rules.
+    tenants = sorted({tenant for scopes in SEED_TENANTS.values() for tenant in scopes if tenant != "*"})
+    statements = schema_sql(tenants) + [view_sql(p) for p in PRODUCTS] + [
+        view_sql(p, tenant_schema(tenant), tenant) for tenant in tenants for p in PRODUCTS]
     (OUT / "01-marketplace-views.sql").write_text(";\n\n".join(statements) + ";\n", encoding="utf-8")
     (OUT / "trino-rules.json").write_text(json.dumps(access_rules(), indent=2) + "\n", encoding="utf-8")
     (OUT / "event-listener.properties").write_text(event_listener_properties(), encoding="utf-8")
@@ -263,11 +286,19 @@ def generate():
 def apply():
     conn = connection()
     try:
-        for statement in schema_sql():
+        # Deployment uses the same live Keycloak tenant attributes that produced
+        # the Trino rules. Bootstrap generation remains deterministic above.
+        from .identity import tenant_roles
+        tenants = sorted({tenant for tenant, _ in tenant_roles() if tenant != "*"})
+        assert_tenant_contract(conn)
+        for statement in schema_sql(tenants):
             run(conn, statement)
         for product in PRODUCTS:
             run(conn, view_sql(product))
             print(f"  certified  {product.fqn}")
+        for tenant in tenants:
+            for product in PRODUCTS:
+                run(conn, view_sql(product, tenant_schema(tenant), tenant))
         print(f"Applied {len(PRODUCTS)} certified views "
           f"(~1 KB of view metadata each, no data files)")
     finally:

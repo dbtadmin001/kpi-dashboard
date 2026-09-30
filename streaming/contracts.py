@@ -95,6 +95,7 @@ def table_names():
 # SQL Server datetime2(3) is represented by Debezium epoch milliseconds.
 COLUMNS = {
     "record_id": "VARCHAR(64)", "application_id": "VARCHAR(64)",
+    "tenant_id": "VARCHAR(64)",
     "entity_id": "VARCHAR(64)", "process_code": "VARCHAR(3)",
     "application_type": "VARCHAR(32)", "activity_type": "VARCHAR(128)",
     "route": "VARCHAR(80)", "cohort_month": "VARCHAR(7)",

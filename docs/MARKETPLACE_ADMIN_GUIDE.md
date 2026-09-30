@@ -491,6 +491,66 @@ people are well behaved.
 The certified layer is **0.02%** of the data it exposes. The one table the
 marketplace itself writes is MetricFlow's day-grain time spine (2,191 rows).
 
+## Tenant isolation
+
+The marketplace is schema-isolated by tenant. Each certified product is created
+twice: the platform-owned `iceberg.marketplace` view, and a tenant-safe view in
+`iceberg.marketplace_<tenant>`. The tenant view applies `tenant_id = '<tenant>'`
+to every declared physical source **before** it aggregates. Regular users receive
+only the tenant schema; they cannot list or query the physical bronze, silver,
+gold, or global marketplace schemas.
+
+`tenant_id` is a required source-to-gold pipeline field. It must be assigned by
+the trusted intake boundary and cannot be taken from a DBeaver or VS Code user
+input. The simulator emits three deterministic tenants so this control is
+exercised locally. A missing tenant field is quarantined by Flink instead of
+becoming a globally readable record.
+
+Tenant membership is an attribute on every Keycloak stakeholder group. Add a
+tenant by adding a group in `infra/variables.tf` with a safe lowercase
+`tenant_id`, applying Terraform, then running:
+
+```bash
+./infra/run.sh apply
+python -m marketplace.identity sync
+python -m marketplace.build apply
+python -m marketplace.trino_config check
+```
+
+For an existing stack, migrate and backfill `tenant_id` through SQL Server,
+CDC, bronze, silver, gold, and KPI measurements before the final `build apply`.
+The marketplace checks every declared product source for that column and stops
+with the missing sources if the migration is incomplete; it never publishes a
+view that only fails when a tenant first queries it.
+
+`identity sync` rejects a role group without `tenant_id`; it never turns that
+mistake into global access. The `*` tenant is reserved for the explicitly trusted
+platform administrator and engineering groups. They remain able to operate the
+pipeline and should be monitored through the marketplace audit log.
+
+For DBeaver or VS Code, select the schema shown by `SHOW SCHEMAS FROM iceberg`,
+for example `marketplace_partner_alpha`. Do not point normal users at
+`marketplace`; that schema is an implementation surface for the view owner.
+
+## OpenMetadata lineage gate
+
+The release sequence must ingest metadata before publishing lineage, then verify
+the catalog graph. The verifier checks every entity and every declared upstream
+edge, including the source-to-certified-marketplace-product edges. It exits
+non-zero for a missing entity or dependency, which makes it suitable for the
+production deployment job after the stack is healthy.
+
+```bash
+python -m streaming.ingestion run
+python -m streaming.lineage --openmetadata
+python -m streaming.lineage --verify-openmetadata
+```
+
+Run that sequence with `OPENMETADATA_URL` and `OPENMETADATA_TOKEN` from the
+deployment secret store. The unit suite verifies the graph contract without a
+network service; the final command is the real-stack gate and must run against
+the same OpenMetadata instance production users search.
+
 ## Known gaps
 
 - **The TLS certificate is self-signed.** Fine on a laptop, and clients trust the

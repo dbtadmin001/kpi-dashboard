@@ -28,7 +28,7 @@ def _check(results, name, condition, detail=""):
 
 def modules(results):
     """Every module imports. Catches a syntax error or bad import in one second."""
-    for module in ("streaming.contracts", "streaming.simulator", "streaming.api",
+    for module in ("streaming.contracts", "streaming.simulator", "streaming.api", "streaming.lineage",
                    "catalog.store",
                    "marketplace.products", "marketplace.build", "marketplace.identity",
                    "marketplace.auth", "marketplace.tls", "marketplace.trino_config",
@@ -270,9 +270,13 @@ def governance(results):
     _check(results, "impersonation denied unless granted",
            all(r["allow"] is False for r in rules["impersonation"]))
 
-    masked = [r for r in rules["tables"] if "columns" in r]
-    _check(results, "entity_id is masked on the granting rule", masked and
-           all(r["privileges"] == ["SELECT"] for r in masked), f"{len(masked)} masked rules")
+    physical = [r for r in rules["tables"]
+                if r.get("schema") in {"nda_bronze", "nda_silver", "nda_gold"}
+                and any(role in r.get("group", "") for role in ("analyst", "data_scientist"))]
+    _check(results, "regular users cannot read physical tenant data", not physical, str(physical[:1]))
+    tenant_schemas = [r for r in rules["schemas"] if r.get("group", "").startswith("tenant_")]
+    _check(results, "tenant roles receive only tenant-certified schemas", bool(tenant_schemas),
+           f"{len(tenant_schemas)} tenant schema grants")
 
 
 def kubernetes(results):

@@ -60,10 +60,12 @@ def register(conn, application_id, process, source, when):
         raise
 
 
-def submit(conn, process, application_type, route, entity_id, application_id=None, received_at=None):
+def submit(conn, process, application_type, route, entity_id, tenant_id, application_id=None, received_at=None):
     """Record a user-submitted application as RECEIVED, rejecting duplicate ids."""
     application_id = application_id or str(uuid4())
     validate(process, application_type, route, application_id)
+    if not re.fullmatch(r"[a-z][a-z0-9_]{1,62}", tenant_id or ""):
+        raise InvalidSubmission("tenant_id must be a lowercase identifier (letters, digits, underscores)")
     received_at = received_at or datetime.now()
     existing = find(conn, application_id)
     if existing:
@@ -73,7 +75,7 @@ def submit(conn, process, application_type, route, entity_id, application_id=Non
         conn.rollback()
         raise DuplicateApplication("application_id was claimed concurrently")
     row = {
-        "record_id": application_id, "application_id": application_id, "entity_id": entity_id,
+        "record_id": application_id, "application_id": application_id, "tenant_id": tenant_id, "entity_id": entity_id,
         "process_code": process, "application_type": application_type, "activity_type": "application",
         "route": route, "cohort_month": received_at.strftime("%Y-%m"), "received_at": received_at,
         "due_at": received_at + timedelta(days=SLA_DAYS), "completed_at": None, "updated_at": received_at,
@@ -100,12 +102,13 @@ def main():
     parser.add_argument("--type", required=True, dest="application_type")
     parser.add_argument("--route", default=ROUTES[0], choices=list(ROUTES))
     parser.add_argument("--entity-id", required=True)
+    parser.add_argument("--tenant-id", required=True, help="Tenant assigned by the trusted intake boundary")
     parser.add_argument("--application-id", default=None, help="Omit to mint a fresh UUID")
     args = parser.parse_args()
     from .simulator import connect
     conn = connect()
     try:
-        row = submit(conn, args.process, args.application_type, args.route, args.entity_id, args.application_id)
+        row = submit(conn, args.process, args.application_type, args.route, args.entity_id, args.tenant_id, args.application_id)
         print(f"Accepted {row['application_id']} for {row['process_code']} due {row['due_at']:%Y-%m-%d}")
     except DuplicateApplication as error:
         raise SystemExit(f"Rejected: {error}")

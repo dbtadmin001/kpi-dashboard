@@ -12,7 +12,7 @@ import pytest
 from marketplace import identity
 from marketplace.build import access_rules
 from marketplace.products import (MARKETPLACE_SCHEMA, PRODUCT_AUDIENCE, PRODUCTS,
-                                  ROLES, SEED_MEMBERS, all_users, sandbox_schema)
+                                  ROLES, SEED_MEMBERS, all_users, sandbox_schema, tenant_schema)
 
 
 # --------------------------------------------------------------------------
@@ -56,14 +56,20 @@ def test_restricted_product_is_not_reachable_by_business_users():
     assert granting and all("business_user" not in r["group"] for r in granting)
 
 
-def test_entity_id_is_masked_on_the_rule_that_grants_select():
-    """Trino applies the first matching table rule, so a mask on a later rule is
-    never reached - it fails silently, showing raw values while looking set."""
-    for rule in access_rules()["tables"]:
-        if rule.get("group") in ("(analyst|data_scientist)", "data_scientist"):
-            assert rule["privileges"] == ["SELECT"]
-            assert [c["name"] for c in rule["columns"]] == ["entity_id"]
-            assert "sha256" in rule["columns"][0]["mask"]
+def test_regular_roles_only_reach_tenant_scoped_certified_views():
+    rules = access_rules()
+    tenant_schemas = {rule["schema"] for rule in rules["schemas"]
+                      if rule.get("group", "").startswith("tenant_")}
+    assert tenant_schemas == {tenant_schema("nda_internal")}
+    # Analysts and scientists have no direct physical-layer SELECT grant. Their
+    # access must pass through a tenant predicate before aggregation.
+    physical = [rule for rule in rules["tables"]
+                if rule.get("schema") in {"nda_bronze", "nda_silver", "nda_gold"}
+                and "analyst" in rule.get("group", "")]
+    assert not physical
+    assert any(rule.get("group") == "tenant_nda_internal__analyst" and
+               rule.get("schema") == tenant_schema("nda_internal")
+               for rule in rules["tables"])
 
 
 # --------------------------------------------------------------------------
@@ -153,6 +159,26 @@ def test_group_file_is_the_format_trinos_file_provider_reads():
     rendered = identity.group_file({"analyst": ["alice.nakato", "grace.auma"],
                                     "administrator": ["admin"]})
     assert rendered.splitlines() == ["administrator:admin", "analyst:alice.nakato,grace.auma"]
+
+
+def test_tenantless_keycloak_group_fails_closed():
+    groups = [{"name": "ma-analysts", "role": "analyst", "tenant": None,
+               "members": [{"username": "alice.nakato", "enabled": True}]}]
+    with pytest.raises(identity.DirectoryUnavailable, match="no tenant_id"):
+        identity.tenant_roles(groups=groups)
+
+
+def test_tenant_group_file_intersects_role_and_tenant():
+    rendered = identity.group_file_with_tenants(
+        {"analyst": ["alice.nakato"]}, {("partner_alpha", "analyst"): ["alice.nakato"]})
+    assert rendered.splitlines() == ["analyst:alice.nakato", "tenant_partner_alpha__analyst:alice.nakato"]
+
+
+def test_tenant_view_predicate_is_applied_before_aggregation():
+    from marketplace.build import view_sql
+    sql = view_sql(PRODUCTS[0], tenant_schema("partner_alpha"), "partner_alpha")
+    assert "FROM (SELECT * FROM iceberg.nda_gold.all_applications WHERE tenant_id = 'partner_alpha')" in sql
+    assert "iceberg.marketplace_partner_alpha.application_throughput" in sql
 
 
 def test_offline_bootstrap_uses_the_seed_and_says_so():

@@ -86,6 +86,9 @@ variable "stakeholder_groups" {
     full_dashboard = bool
     row_limit      = number
     trino_role     = string
+    # The Keycloak group is also the tenant boundary for certified Trino views.
+    # Use "*" only for platform operators that are explicitly trusted to span tenants.
+    tenant_id      = string
   }))
 
   default = {
@@ -98,6 +101,7 @@ variable "stakeholder_groups" {
       full_dashboard = true
       row_limit      = 1000000
       trino_role     = "data_engineer"
+      tenant_id      = "*"
     }
     ma-analysts = {
       description    = "Marketing Authorization analysts: MA only, curated layers"
@@ -108,6 +112,7 @@ variable "stakeholder_groups" {
       full_dashboard = false
       row_limit      = 250000
       trino_role     = "analyst"
+      tenant_id      = "nda_internal"
     }
     ct-analysts = {
       description    = "Clinical Trials analysts: CT only, curated layers"
@@ -118,6 +123,7 @@ variable "stakeholder_groups" {
       full_dashboard = false
       row_limit      = 250000
       trino_role     = "analyst"
+      tenant_id      = "nda_internal"
     }
     gmp-analysts = {
       description    = "GMP inspectorate analysts: GMP only, curated layers"
@@ -128,6 +134,7 @@ variable "stakeholder_groups" {
       full_dashboard = false
       row_limit      = 250000
       trino_role     = "analyst"
+      tenant_id      = "nda_internal"
     }
     # Modelling work needs silver as well as gold, but still reads entity_id
     # masked - a wider slice of the lakehouse, not a wider slice of the people.
@@ -140,6 +147,7 @@ variable "stakeholder_groups" {
       full_dashboard = true
       row_limit      = 500000
       trino_role     = "data_scientist"
+      tenant_id      = "nda_internal"
     }
     # Leadership reads the certified products and nothing underneath them: the
     # numbers on the slide, without a route to the physical tables behind them.
@@ -157,6 +165,7 @@ variable "stakeholder_groups" {
       full_dashboard = true
       row_limit      = 0
       trino_role     = "business_user"
+      tenant_id      = "nda_internal"
     }
     # Public transparency: service-delivery timeliness only. Compliance and CAPA
     # indicators are deliberately withheld - they report failure rates for small,
@@ -178,6 +187,7 @@ variable "stakeholder_groups" {
       full_dashboard = false
       row_limit      = 0
       trino_role     = "business_user"
+      tenant_id      = "nda_internal"
     }
     # Engine identities, not people: the Trino view owners and the dashboard's
     # serving principal. They are in the directory so that "who is an
@@ -191,6 +201,7 @@ variable "stakeholder_groups" {
       full_dashboard = true
       row_limit      = 1000000
       trino_role     = "administrator"
+      tenant_id      = "*"
     }
   }
 }

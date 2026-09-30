@@ -45,6 +45,7 @@ from .contracts import COLUMNS, PROCESSES, table_names
 CLASSIFICATION = {
     "record_id": ("indirect_identifier", "legal_obligation", False),
     "application_id": ("indirect_identifier", "legal_obligation", False),
+    "tenant_id": ("access_control_identifier", "legal_obligation", False),
     "entity_id": ("pseudonymous_identifier", "legal_obligation", True),
     "process_code": ("operational", "legal_obligation", False),
     "application_type": ("operational", "legal_obligation", False),

@@ -12,11 +12,11 @@ def literal(value):
 
 def kpi_query(measurements="SELECT * FROM iceberg.nda_gold.all_kpi_measurements"):
     return """WITH measurements AS (""" + measurements + """), a AS (
- SELECT process_code,kpi_id,reporting_quarter, SUM(numerator) numerator,SUM(denominator) denominator,
+ SELECT tenant_id,process_code,kpi_id,reporting_quarter, SUM(numerator) numerator,SUM(denominator) denominator,
  AVG(measured_value) mean_value,ARRAY_SORT(ARRAY_AGG(measured_value)) ordered_values,MAX(updated_at) updated_at
- FROM measurements GROUP BY 1,2,3
+ FROM measurements GROUP BY 1,2,3,4
 )
-SELECT a.process_code,a.kpi_id,a.reporting_quarter,d.baseline,d.target,a.numerator,a.denominator,a.updated_at,
+SELECT a.tenant_id,a.process_code,a.kpi_id,a.reporting_quarter,d.baseline,d.target,a.numerator,a.denominator,a.updated_at,
  CASE WHEN d.aggregation='percentage' THEN 100.0E0*a.numerator/NULLIF(a.denominator,0)
  WHEN d.aggregation='average' THEN a.mean_value
  ELSE (ELEMENT_AT(ordered_values,CAST(CEIL(CARDINALITY(ordered_values)/2.0E0) AS INTEGER))

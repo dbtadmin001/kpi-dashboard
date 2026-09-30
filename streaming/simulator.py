@@ -71,7 +71,8 @@ def lifecycles(count=30, seed=42, start=None, as_of=None, arrival_days=ARRIVAL_D
             app_id = uid(f"nda:{seed}:{start.isoformat()}:{process}:{i}")
             app_type = rng.choice(variants)
             route = ROUTES[i % len(ROUTES)]
-            common = dict(application_id=app_id, entity_id=uid(f"entity:{process}:{i // 2}"),
+            common = dict(application_id=app_id, tenant_id=("nda_internal", "partner_alpha", "partner_beta")[i % 3],
+                          entity_id=uid(f"entity:{process}:{i // 2}"),
                           process_code=process, application_type=app_type, route=route,
                           cohort_month=received.strftime("%Y-%m"), received_at=received,
                           due_at=received + timedelta(days=90), touch_days=0., wait_days=0.)

@@ -33,6 +33,8 @@ from typing import List
 MARKETPLACE_SCHEMA = "marketplace"
 SANDBOX_PREFIX = "sandbox_"
 PHYSICAL_SCHEMAS = ("nda_bronze", "nda_silver", "nda_gold")
+TENANT_SCHEMA_PREFIX = "marketplace_"
+SAFE_TENANT = __import__("re").compile(r"^[a-z][a-z0-9_]{1,62}$")
 
 
 @dataclass(frozen=True)
@@ -357,6 +359,14 @@ def sandbox_schema(username: str) -> str:
     return SANDBOX_PREFIX + username.lower().replace(".", "_").replace("-", "_")
 
 
+def tenant_schema(tenant: str) -> str:
+    """A tenant's certified schema; reject values unsafe to embed in SQL."""
+    tenant = tenant.lower()
+    if not SAFE_TENANT.fullmatch(tenant):
+        raise ValueError(f"Refusing unsafe tenant identifier: {tenant!r}")
+    return TENANT_SCHEMA_PREFIX + tenant
+
+
 # NOT the membership list. Keycloak is the directory - see marketplace/identity.py.
 #
 # This exists only to bootstrap a cluster before Keycloak is up, and to give the
@@ -370,6 +380,12 @@ SEED_MEMBERS = {
     "analyst": ["alice.nakato", "peter.ssemwanga", "grace.auma",
                 "david.kato", "sarah.namugga", "james.opio"],
     "business_user": ["public.viewer", "chief.director"],
+}
+
+# Bootstrap/test tenant membership only. Live membership comes from Keycloak.
+SEED_TENANTS = {
+    **{user: ("nda_internal",) for users in SEED_MEMBERS.values() for user in users},
+    "marketplace_owner": ("*",), "nda_dashboard": ("*",), "admin": ("*",),
 }
 
 

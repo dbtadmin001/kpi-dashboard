@@ -131,14 +131,14 @@ def flink_sql():
             inserts.append(f"INSERT INTO lake.{layer}.{target} SELECT {names} FROM valid_{table}")
         # Invalid facts fail source constraints first. Explicit predicate is also documented
         # and surfaced in a separate quarantine sink, not dropped without evidence.
-        valid = "record_id IS NOT NULL AND cohort_month IS NOT NULL AND received_at IS NOT NULL AND due_at >= received_at AND (completed_at IS NULL OR completed_at >= received_at) AND touch_days >= 0 AND wait_days >= 0 AND revision > 0"
+        valid = "record_id IS NOT NULL AND tenant_id IS NOT NULL AND cohort_month IS NOT NULL AND received_at IS NOT NULL AND due_at >= received_at AND (completed_at IS NULL OR completed_at >= received_at) AND touch_days >= 0 AND wait_days >= 0 AND revision > 0"
         statements.append(f"CREATE TEMPORARY VIEW valid_{table} AS SELECT * FROM cdc_{table} WHERE {valid}")
         statements.append(f"CREATE TABLE IF NOT EXISTS lake.nda_silver.quarantine_{table} ({columns}, PRIMARY KEY(record_id,cohort_month) NOT ENFORCED) PARTITIONED BY(cohort_month) WITH ('format-version'='2','write.upsert.enabled'='true')")
         inserts.append(f"INSERT INTO lake.nda_silver.quarantine_{table} SELECT {names} FROM cdc_{table} WHERE NOT ({valid})")
     for process in ("MA", "CT", "GMP"):
         target = f"lake.nda_gold.fact_{process.lower()}_kpi_measurements"
         statements.append(f"""CREATE TABLE IF NOT EXISTS {target} (
- measurement_id STRING, cohort_month STRING, application_id STRING, activity_id STRING,
+ measurement_id STRING, cohort_month STRING, application_id STRING, activity_id STRING, tenant_id STRING,
  process_code STRING, kpi_id STRING, reporting_quarter STRING,
  measured_value DOUBLE, numerator INT, denominator INT, updated_at BIGINT,
  PRIMARY KEY(measurement_id,cohort_month) NOT ENFORCED
@@ -154,7 +154,7 @@ def flink_sql():
                 where += " AND route IN (" + ",".join(f"'{r}'" for r in rule.routes) + ")"
             success = "outcome='COMPLIANT'" if rule.success == "compliant" else "completed_at<=due_at"
             value = f"CASE WHEN {success} THEN 100.0 ELSE 0.0 END" if rule.aggregate == "percentage" else "(completed_at-received_at)/86400000.0"
-            parts.append(f"""SELECT CONCAT(record_id,':','{rule.key}'),cohort_month,application_id,record_id,
+            parts.append(f"""SELECT CONCAT(record_id,':','{rule.key}'),cohort_month,application_id,record_id,tenant_id,
  process_code,'{rule.key}',CONCAT('Q',CAST(QUARTER(TO_TIMESTAMP_LTZ(completed_at,3)) AS STRING),' ',DATE_FORMAT(TO_TIMESTAMP_LTZ(completed_at,3),'yyyy')),
  CAST({value} AS DOUBLE),CASE WHEN {success} THEN 1 ELSE 0 END,1,updated_at
  FROM valid_{process.lower()}_activities WHERE {where}""")
