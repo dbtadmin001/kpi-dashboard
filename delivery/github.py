@@ -162,11 +162,28 @@ def protect(repo=None, reviewers=1):
             "required_approving_review_count": reviewers,
             # A review of an older revision does not approve what is merged.
             "dismiss_stale_reviews": True,
-            "require_last_push_approver": True,
+            "require_last_push_approval": True,
         },
         "restrictions": None,
         "allow_force_pushes": False,
         "allow_deletions": False,
+        # Linear history stays ON, and squash-merging stays the way releases
+        # land: production then reads as one commit per release, which is what
+        # you want to look at when something is wrong in production.
+        #
+        # What squashing costs is ancestry. The squash commit holds master's
+        # changes under a new identity, git cannot match it to the commits it
+        # came from, and the branches diverge the moment a release lands. The
+        # next pull request then opens conflicted - and GitHub builds a merge ref
+        # to run `pull_request` workflows against, cannot build one for a
+        # conflicted PR, and runs NO CI at all. PR #2 sat with zero checks for
+        # exactly that reason, with nothing on the page to say why. A release
+        # branch that silently stops testing looks identical to one that passes.
+        #
+        # .github/workflows/reconnect.yml pays that cost automatically: after
+        # every push to production it records the ancestry on master, changing
+        # no file, and refuses loudly if production ever holds something master
+        # does not. So the property is kept and the trap is closed.
         "required_linear_history": True,
         "required_conversation_resolution": True,
     }

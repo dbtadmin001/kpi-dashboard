@@ -17,6 +17,7 @@ locals {
       # warehouse" is answerable from the same place as "what can it see in the
       # dashboard", rather than requiring a second lookup in Trino's config.
       trino_role = group.trino_role
+      tenant_id  = group.tenant_id
     }
   }
 }

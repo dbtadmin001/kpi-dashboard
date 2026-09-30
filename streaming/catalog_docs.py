@@ -94,6 +94,7 @@ LAYER_DOCS = {
 COLUMN_DOCS = {
     "record_id": "Unique reference for this row.",
     "application_id": "The application this row belongs to. Use it to join activities and stages back to their application.",
+    "tenant_id": "The organisation that owns this record. It is enforced by the tenant-specific marketplace view and is not user-editable.",
     "entity_id": "Pseudonymous reference for the company or applicant. Not a name - direct identifiers are held separately and are restricted.",
     "process_code": "Which regulatory process: MA (marketing authorization), CT (clinical trials) or GMP (manufacturing quality).",
     "application_type": "The kind of application - for example new, renewal, variation, amendment or inspection.",

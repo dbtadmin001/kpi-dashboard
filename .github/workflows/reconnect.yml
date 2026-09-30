@@ -1,0 +1,111 @@
+name: Reconnect master after a release
+
+# Squash-merging a pull request puts a brand new commit on production holding
+# the same changes under a different identity. Git cannot match it to the
+# commits it was made from, so master and production diverge the moment a
+# release lands.
+#
+# That is not a cosmetic problem. The next pull request opens conflicted, and
+# GitHub runs `pull_request` workflows against a merge ref it has to build
+# first - it cannot build one for a conflicted PR, so it runs no CI at all. PR
+# #2 sat with zero checks for exactly this reason, and nothing on the PR page
+# said why. A release branch that silently stops testing is the worst failure
+# mode available here, because it looks like success.
+#
+# The repair is one merge that records the ancestry the squash discarded and
+# changes no file. Doing it by hand after every release is a step someone will
+# eventually forget, and the cost of forgetting is a PR that appears to pass
+# while testing nothing. So it runs here instead.
+
+on:
+  push:
+    branches: [production]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reconnect-master
+  cancel-in-progress: false
+
+jobs:
+  reconnect:
+    name: Record the release on master
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          # The whole history: this compares commits across both branches.
+          fetch-depth: 0
+
+      - name: Record production's ancestry on master
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --quiet origin production
+
+          if git merge-base --is-ancestor origin/production HEAD; then
+            echo "production is already an ancestor of master. Nothing to reconnect."
+            exit 0
+          fi
+
+          # `-s ours` keeps master's tree and records production as merged. That
+          # is exactly right when production holds nothing master lacks - and
+          # catastrophic when it does, because it would discard it silently. So
+          # prove the precondition instead of assuming it.
+          #
+          # A squash commit's content equals the tree of the pull request's head,
+          # and that head is a commit on master. If the two match, master already
+          # contains every change production has.
+          tip=$(git rev-parse origin/production)
+          head=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tip}/pulls" \
+                   --jq '.[0].head.sha' 2>/dev/null || true)
+
+          safe=no
+          if [ -n "${head}" ] && git cat-file -e "${head}^{commit}" 2>/dev/null; then
+            if git diff --quiet "${head}" origin/production; then
+              safe=yes
+              echo "production's tree matches ${head:0:8}, which is on master."
+            else
+              echo "production differs from its own pull request head ${head:0:8}."
+            fi
+          else
+            echo "Could not find the pull request that produced ${tip:0:8}."
+          fi
+
+          if [ "${safe}" != yes ]; then
+            echo "::error::production may hold changes master does not have, and this job never guesses. Reconcile by hand on master: git merge origin/production, resolve, push."
+            exit 1
+          fi
+
+          # A heredoc, so the message carries no YAML indentation into the log.
+          subject=$(git log -1 --format=%s origin/production)
+          cat > /tmp/reconnect-message <<MSG
+          Reconnect master to production after: ${subject}
+
+          Recorded by .github/workflows/reconnect.yml. The squash commit on
+          production holds changes master already has, verified against the
+          pull request head before this was written.
+
+          No file is changed by this merge. It restores the ancestry the squash
+          removed, so the next pull request opens clean and GitHub can build the
+          merge ref it needs in order to run CI at all.
+          MSG
+
+          before=$(git rev-parse 'HEAD^{tree}')
+          git merge -s ours origin/production -F /tmp/reconnect-message
+          after=$(git rev-parse 'HEAD^{tree}')
+
+          if [ "${before}" != "${after}" ]; then
+            echo "::error::this merge changed the tree (${before:0:8} -> ${after:0:8}) and must not. Refusing to push."
+            exit 1
+          fi
+
+          git push origin master
+          echo "master reconnected; its tree is untouched (${after:0:8})."

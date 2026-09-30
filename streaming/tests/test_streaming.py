@@ -202,6 +202,15 @@ def test_lineage_graph_is_connected_end_to_end():
     assert not orphans, f"consumed but never produced: {orphans}"
 
 
+def test_openmetadata_contract_includes_tenant_marketplace_edges():
+    from streaming.lineage import expected_openmetadata_edges
+    edges = expected_openmetadata_edges()
+    assert any(source == "nda_gold.all_applications" and sink == "marketplace.application_throughput"
+               for _, _, _, source, _, sink in edges)
+    assert any(sink == "marketplace_nda_internal.application_throughput"
+               for _, _, _, _, _, sink in edges)
+
+
 def test_async_enrichment_is_bounded_and_records_failures():
     import asyncio
     from streaming.enrichment import enrich_all, COLUMNS as ENRICH_COLUMNS

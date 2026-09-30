@@ -34,10 +34,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from .products import ROLES, SEED_MEMBERS, sandbox_schema
+from .products import ROLES, SEED_MEMBERS, SEED_TENANTS, sandbox_schema, tenant_schema
 
 REALM = os.environ.get("KEYCLOAK_REALM", "nda")
 ROLE_ATTRIBUTE = "trino_role"
+TENANT_ATTRIBUTE = "tenant_id"
 PAGE = 200
 
 # Engine identities, not people. marketplace_owner owns the certified views and
@@ -118,7 +119,7 @@ def _members(group_id, bearer):
 def directory(bearer=None):
     """Every group in the realm with a marketplace role, and who is in it.
 
-    Returns [{name, path, role, inherited, members:[{username, enabled}]}].
+    Returns groups with their role, tenant scope, and enabled members.
     """
     bearer = bearer or token()
     found = []
@@ -130,7 +131,8 @@ def directory(bearer=None):
             members = [{"username": m["username"], "enabled": m.get("enabled", True)}
                        for m in _members(group["id"], bearer)]
             found.append({"name": detail["name"], "path": detail.get("path", "/" + detail["name"]),
-                          "role": role, "inherited": _attribute(detail, ROLE_ATTRIBUTE) is None,
+                          "role": role, "tenant": _attribute(detail, TENANT_ATTRIBUTE),
+                          "inherited": _attribute(detail, ROLE_ATTRIBUTE) is None,
                           "members": sorted(members, key=lambda m: m["username"])})
         for child in _children(detail, bearer):
             walk(child, role)
@@ -207,6 +209,50 @@ def group_file(members):
                    for role, users in sorted(members.items()))
 
 
+def tenant_roles(groups=None, offline=False):
+    """Resolve the tenant/role groups Trino matches for certified views.
+
+    A role without a tenant is rejected instead of becoming a global grant. The
+    wildcard is reserved for the pinned platform identities and is never written
+    as a queryable tenant schema.
+    """
+    if offline:
+        resolved = {}
+        for role, users in SEED_MEMBERS.items():
+            for user in users:
+                for tenant in SEED_TENANTS.get(user, ()):
+                    resolved.setdefault((tenant, role), set()).add(user)
+        return {key: sorted(users) for key, users in resolved.items()}
+    groups = directory() if groups is None else groups
+    resolved = {}
+    for group in groups:
+        role, tenant = group["role"], group.get("tenant")
+        if role not in ROLES:
+            continue  # role_members reports the actionable typo
+        if not tenant:
+            raise DirectoryUnavailable(
+                f"Keycloak group {group['name']!r} grants {role!r} but has no {TENANT_ATTRIBUTE}. "
+                "Refusing to turn an unscoped role into global marketplace access.")
+        tenant_schema(tenant) if tenant != "*" else None
+        for member in group["members"]:
+            if member["enabled"]:
+                resolved.setdefault((tenant, role), set()).add(member["username"])
+    return {key: sorted(users) for key, users in resolved.items()}
+
+
+def tenant_group(tenant, role):
+    """Name of a derived Trino group; both inputs have already been validated."""
+    return f"tenant_{tenant}__{role}"
+
+
+def group_file_with_tenants(members, scoped):
+    """Role groups plus derived tenant/role intersections, all from Keycloak."""
+    lines = [f"{role}:{','.join(users)}" for role, users in sorted(members.items())]
+    lines += [f"{tenant_group(tenant, role)}:{','.join(users)}"
+              for (tenant, role), users in sorted(scoped.items()) if tenant != "*"]
+    return "\n".join(lines) + "\n"
+
+
 def provision(users, quiet=False):
     """Create the schema behind each user's sandbox rule.
 
@@ -254,18 +300,20 @@ def sync(offline=False, quiet=False, provision_sandboxes=True):
     """
     from .build import OUT, access_rules
 
-    members = role_members(offline=offline)
+    groups = None if offline else directory()
+    members = role_members(offline=offline, groups=groups)
+    scoped = tenant_roles(groups=groups, offline=offline)
     users = governed_users(members)
     root = OUT / "trino"
     root.mkdir(parents=True, exist_ok=True)
-    (root / "groups.txt").write_text(group_file(members), encoding="utf-8")
+    (root / "groups.txt").write_text(group_file_with_tenants(members, scoped), encoding="utf-8")
     # Impersonation must be resolved here too, not only in trino_config: `identity
     # sync` is the documented way to apply a membership change, so if it wrote
     # rules without impersonators it would silently revoke the grant every time
     # anyone added a user.
     from .trino_config import impersonators
     (root / "rules.json").write_text(
-        json.dumps(access_rules(users=users, impersonators=impersonators(members)),
+        json.dumps(access_rules(users=users, impersonators=impersonators(members), tenant_roles=scoped),
                    indent=2) + chr(10), encoding="utf-8")
     if not quiet:
         source = "seed list (OFFLINE)" if offline else f"Keycloak realm {REALM}"

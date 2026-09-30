@@ -79,7 +79,7 @@ def lake_fields():
 
 
 KPI_FIELDS = [("measurement_id", "string"), ("cohort_month", "string"), ("application_id", "string"),
-              ("activity_id", "string"), ("process_code", "string"), ("kpi_id", "string"),
+              ("activity_id", "string"), ("tenant_id", "string"), ("process_code", "string"), ("kpi_id", "string"),
               ("reporting_quarter", "string"), ("measured_value", "double"), ("numerator", "int"),
               ("denominator", "int"), ("updated_at", "bigint")]
 ENRICH_FIELDS = [("entity_id", "string"), ("legal_name", "string"), ("country", "string"),
@@ -140,7 +140,7 @@ def jobs():
     yield ("trino.kpi_quarterly", "Serving view; aggregates measurements against dim_kpi targets",
            [dataset(LAKE_NS, f"nda_gold.fact_{p.lower()}_kpi_measurements", KPI_FIELDS) for p in PROCESSES],
            [dataset(LAKE_NS, "nda_gold.kpi_quarterly",
-                    [("process_code", "string"), ("kpi_id", "string"), ("reporting_quarter", "string"),
+                    [("tenant_id", "string"), ("process_code", "string"), ("kpi_id", "string"), ("reporting_quarter", "string"),
                      ("baseline", "double"), ("target", "double"), ("numerator", "bigint"),
                      ("denominator", "bigint"), ("value", "double")])])
 
@@ -226,10 +226,96 @@ def om_entity(namespace, name):
     return "tables", f"nda_trino.iceberg.{name}"
 
 
-def publish_openmetadata(url=None, token=None):
-    base = (url or os.environ["OPENMETADATA_URL"]).rstrip("/")
+def marketplace_jobs():
+    """Declared certified-product lineage, including the tenant-safe views.
+
+    The marketplace declaration already owns the list of physical sources; using
+    it here avoids a second, hand-maintained lineage map that can drift.
+    """
+    from marketplace.products import PRODUCTS, SEED_TENANTS, tenant_schema
+    tenants = sorted({tenant for scopes in SEED_TENANTS.values() for tenant in scopes if tenant != "*"})
+    for product in PRODUCTS:
+        inputs = [dataset(LAKE_NS, source.removeprefix("iceberg.")) for source in product.sources]
+        yield (f"trino.marketplace.{product.name}", f"Certified marketplace product: {product.title}",
+               inputs, [dataset(LAKE_NS, f"marketplace.{product.name}")])
+        for tenant in tenants:
+            yield (f"trino.marketplace.{tenant}.{product.name}",
+                   f"Tenant-isolated certified marketplace product for {tenant}", inputs,
+                   [dataset(LAKE_NS, f"{tenant_schema(tenant)}.{product.name}")])
+
+
+def openmetadata_jobs():
+    """The complete graph OpenMetadata must be able to traverse."""
+    yield from jobs()
+    yield from marketplace_jobs()
+
+
+def expected_openmetadata_edges():
+    """Stable source -> product edges used by publishing and the release gate."""
+    edges = []
+    for name, description, inputs, outputs in openmetadata_jobs():
+        for source in inputs:
+            for sink in outputs:
+                edges.append((name, description, source["namespace"], source["name"],
+                              sink["namespace"], sink["name"]))
+    return edges
+
+
+def _om_session(url=None, token=None):
+    base = (url or os.environ.get("OPENMETADATA_URL", "")).rstrip("/")
+    if not base:
+        raise RuntimeError("OPENMETADATA_URL is required for lineage verification")
     session = requests.Session()
-    session.headers["Authorization"] = "Bearer " + (token or os.environ["OPENMETADATA_TOKEN"])
+    actual_token = token or os.environ.get("OPENMETADATA_TOKEN", "")
+    if actual_token:
+        session.headers["Authorization"] = "Bearer " + actual_token
+    return session, base
+
+
+def verify_openmetadata(url=None, token=None):
+    """Fail if ingestion or lineage publication left a broken dependency.
+
+    This intentionally checks the catalog after publishing, rather than merely
+    trusting HTTP 200 responses while publishing edges. A missing catalog entity
+    or an absent upstream edge blocks the release with its fully-qualified name.
+    """
+    session, base = _om_session(url, token)
+    entities, missing = {}, []
+    for _, _, source_ns, source_name, sink_ns, sink_name in expected_openmetadata_edges():
+        for namespace, name in ((source_ns, source_name), (sink_ns, sink_name)):
+            kind, fqn = om_entity(namespace, name)
+            if (kind, fqn) in entities:
+                continue
+            response = session.get(f"{base}/v1/{kind}/name/{quote(fqn, safe='')}", timeout=30)
+            if response.status_code == 404:
+                missing.append(fqn)
+                continue
+            response.raise_for_status()
+            entities[(kind, fqn)] = response.json()["id"]
+    if missing:
+        raise RuntimeError("OpenMetadata is missing lineage entities: " + ", ".join(sorted(set(missing))))
+
+    absent = []
+    for name, _, source_ns, source_name, sink_ns, sink_name in expected_openmetadata_edges():
+        source_kind, source_fqn = om_entity(source_ns, source_name)
+        sink_kind, sink_fqn = om_entity(sink_ns, sink_name)
+        sink_id = entities[(sink_kind, sink_fqn)]
+        response = session.get(f"{base}/v1/lineage/{sink_id}",
+                               params={"upstreamDepth": 1, "downstreamDepth": 0}, timeout=30)
+        response.raise_for_status()
+        graph = response.json()
+        source_id = entities[(source_kind, source_fqn)]
+        upstream = graph.get("upstreamEdges", [])
+        if not any(edge.get("fromEntity") == source_id and edge.get("toEntity") == sink_id for edge in upstream):
+            absent.append(f"{source_fqn} -> {sink_fqn} ({name})")
+    if absent:
+        raise RuntimeError("OpenMetadata is missing declared lineage edges: " + "; ".join(absent))
+    print(f"Verified {len(entities)} OpenMetadata entities and {len(expected_openmetadata_edges())} lineage edges")
+    return len(entities), len(expected_openmetadata_edges())
+
+
+def publish_openmetadata(url=None, token=None):
+    session, base = _om_session(url, token)
     cache, missing = {}, set()
 
     def resolve(namespace, name):
@@ -246,14 +332,12 @@ def publish_openmetadata(url=None, token=None):
         return cache[(kind, fqn)]
 
     planned = []
-    for name, description, inputs, outputs in jobs():
-        for source in inputs:
-            upstream = resolve(source["namespace"], source["name"])
-            for sink in outputs:
-                downstream = resolve(sink["namespace"], sink["name"])
-                if upstream and downstream:
-                    planned.append({"edge": {"fromEntity": upstream, "toEntity": downstream,
-                                             "lineageDetails": {"description": f"{name}: {description}"}}})
+    for name, description, source_ns, source_name, sink_ns, sink_name in expected_openmetadata_edges():
+        upstream = resolve(source_ns, source_name)
+        downstream = resolve(sink_ns, sink_name)
+        if upstream and downstream:
+            planned.append({"edge": {"fromEntity": upstream, "toEntity": downstream,
+                                     "lineageDetails": {"description": f"{name}: {description}"}}})
     for payload in planned:
         response = session.put(f"{base}/v1/lineage", json=payload, timeout=30)
         response.raise_for_status()
@@ -266,6 +350,7 @@ def main():
     parser = argparse.ArgumentParser(description="Emit or inspect NDA lineage")
     parser.add_argument("--emit", action="store_true", help="Post OpenLineage events to Marquez")
     parser.add_argument("--openmetadata", action="store_true", help="Publish the same graph into OpenMetadata")
+    parser.add_argument("--verify-openmetadata", action="store_true", help="Fail on a missing OpenMetadata entity or edge")
     parser.add_argument("--url", default=None)
     parser.add_argument("--namespace", default="nda")
     parser.add_argument("--upstream", default=None, help="Dataset name to trace upstream from")
@@ -275,6 +360,8 @@ def main():
         emit(args.url, args.namespace)
     elif args.openmetadata:
         publish_openmetadata()
+    elif args.verify_openmetadata:
+        verify_openmetadata(args.url)
     elif args.upstream or args.downstream:
         way = "up" if args.upstream else "down"
         target = f"{LAKE_NS}|{args.upstream or args.downstream}"

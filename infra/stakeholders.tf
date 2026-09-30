@@ -13,6 +13,7 @@ resource "keycloak_group" "stakeholder" {
     # Read by marketplace/identity.py to build Trino's group file. This is why
     # membership is never restated in Python: the group carries its own role.
     trino_role = each.value.trino_role
+    tenant_id  = each.value.tenant_id
   }
 }
 
