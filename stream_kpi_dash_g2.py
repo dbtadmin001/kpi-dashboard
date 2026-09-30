@@ -1694,21 +1694,14 @@ st.markdown(
 st.sidebar.image("logo.jpg", width=150)
 st.sidebar.markdown('<div class="sidebar-eyebrow">Explore the data</div>', unsafe_allow_html=True)
 with st.sidebar.expander("Data source", expanded=False):
-    # Default to the live analytics engine whenever its credentials are configured.
-    # Default to the role-gated view when identity is configured: this is an
-    # organizational dashboard, so who you are decides what it shows.
-    _access_configured = (pathlib.Path(__file__).resolve().parent
-                          / "infra" / "generated" / "credentials.json").exists()
-    _default_source = 2 if _access_configured else (1 if os.environ.get("NDA_API_KEY") else 0)
-    source_mode = st.radio("Source", ["Reference data", "Live application stream", "Sign in"],
-                           index=_default_source, key="nda_source_mode")
-    if source_mode == "Reference data":
-        data_path = st.text_input("Data file", value="data/kpiData.json")
-    else:
-        api_url = st.text_input("API URL", value=os.environ.get("NDA_API_URL", "http://127.0.0.1:8095"))
-        auto_refresh = st.checkbox("Auto-refresh", value=False,
-                                   help="Figures only change when the lakehouse commits a "
-                                        "checkpoint, about once a minute.")
+    # This dashboard is exclusively a view of authenticated streaming data.
+    # A JSON fixture is useful in tests, but it must never become a production
+    # fallback when Trino, Iceberg, or the serving API is unavailable.
+    source_mode = "Sign in"
+    api_url = st.text_input("Analytics API", value=os.environ.get("NDA_API_URL", "http://127.0.0.1:8095"),
+                            disabled=True)
+    auto_refresh = st.checkbox("Auto-refresh", value=False,
+                               help="Figures update after a committed lakehouse checkpoint.")
 
 # Signed-in stakeholders get a view cut to their entitlement, resolved by
 # Keycloak (identity) and OPA (policy). Nothing here decides access itself.
@@ -1787,8 +1780,6 @@ if source_mode == "Sign in":
                + " · " + ", ".join(entitlement.get("groups", []))
                + " · processes: " + (", ".join(sorted(entitlement.get("processes", []))) or "none")
                + (" · all indicators" if shown == "*" else f" · {len(shown or [])} indicators"))
-elif source_mode == "Reference data":
-    data = load_data(data_path)
 else:
     try:
         api_response = requests.get(api_url.rstrip("/") + "/v1/dashboard", headers={"X-API-Key": os.environ.get("NDA_API_KEY", "")}, timeout=15)
